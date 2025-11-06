@@ -5,7 +5,7 @@
     "email": "mohammed.bencheikh.dev@gmail.com",
     "url": "https://mohammedbencheikh.com/"
   },
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "A small React routing provider library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -37,8 +37,18 @@
     "react",
     "route",
     "provider",
+    "kit",
     "routing",
-    "route-provider"
+    "route-provider",
+    "route-kit"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mohammed-Ben-Cheikh/router-kit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mohammed-Ben-Cheikh/router-kit/issues"
+  },
+  "homepage": "https://github.com/Mohammed-Ben-Cheikh/router-kit#readme",
   "license": "MIT"
 }

@@ -7,7 +7,11 @@ export interface Route {
 }
 
 export interface GetComponent {
-  (routes: Route[], currentPath: string, parentPath?: string): JSX.Element;
+  (
+    routes: Route[],
+    currentPath: string,
+    parentPath?: string
+  ): JSX.Element | null;
 }
 
 export interface Routes {

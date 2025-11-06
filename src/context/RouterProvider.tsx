@@ -8,49 +8,51 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   const [path, setPath] = useState(window.location.pathname);
   let fullPathWithParams = "";
 
-  const pathValidation = (fullPath: string, path: string) => {
-    const fakePathArr = path.split("/");
-    let fakePath = "/";
+  const pathValidation = (routeFullPath: string, currentPath: string) => {
+    const routeParts = routeFullPath.split("/").filter(Boolean);
+    const pathParts = currentPath.split("/").filter(Boolean);
 
-    fullPath.split("/").forEach((e, index) => {
-      if (e.startsWith(":")) {
-        fakePathArr[index] = e;
-      }
-    });
+    if (routeParts.length !== pathParts.length) return false;
 
-    fakePathArr.forEach((e) => {
-      fakePath = join(fakePath, `/${e}`);
-    });
-
-    if (fullPath === fakePath) {
-      fakePath = "";
-      return true;
+    for (let i = 0; i < routeParts.length; i++) {
+      const r = routeParts[i];
+      const p = pathParts[i];
+      if (r.startsWith(":")) continue;
+      if (r !== p) return false;
     }
-    fakePath = "";
-    return false;
+    return true;
   };
 
   const getComponent: GetComponent = (
-    routes,
+    routesList,
     currentPath,
     parentPath = "/"
   ) => {
-    let component = <Page404 />;
-    for (const route of routes) {
-      if (route.path === "/404" && route.component) component = route.component;
+    for (const route of routesList) {
+      const is404 = route.path === "404" || route.path === "/404";
+      if (is404 && route.component) {
+        // don't return here; keep as fallback at top-level
+      }
+
       const fullPath = join(parentPath, `/${route.path}`);
+
       if (pathValidation(fullPath, currentPath)) {
         fullPathWithParams = fullPath;
-        component = route.component;
-        break;
+        return route.component;
       }
+
       if (route.children) {
-        component = getComponent(route.children, currentPath, fullPath);
+        const childMatch = getComponent(route.children, currentPath, fullPath);
+        if (childMatch) return childMatch;
       }
     }
-    return component;
+
+    return null;
   };
-  const component = getComponent(routes, path);
+
+  fullPathWithParams = "";
+  const matchedComponent = getComponent(routes, path);
+  const component = matchedComponent ?? <Page404 />;
 
   const navigate = (to: string, options?: { replace?: boolean }) => {
     if (options && options.replace) {

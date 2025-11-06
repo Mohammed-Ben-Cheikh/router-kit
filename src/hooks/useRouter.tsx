@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import RouterContext from "./RouterContext";
+import RouterContext from "../context/RouterContext";
 
 export function useRouter() {
   const ctx = useContext(RouterContext);

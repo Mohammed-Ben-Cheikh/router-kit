@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useRouter } from "./useRouter";
+import { useRouter } from "../hooks/useRouter";
 
 function Link({
   to,

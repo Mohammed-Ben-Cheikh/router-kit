@@ -5,10 +5,10 @@
     "email": "mohammed.bencheikh.dev@gmail.com",
     "url": "https://mohammedbencheikh.com/"
   },
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "A small React routing provider library",
   "main": "dist/index.js",
-  "types": "dist/*.d.ts",
+  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
@@ -16,11 +16,13 @@
     "clean": "rm -rf dist",
     "build": "tsc -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json --watch",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pack:verify": "npm pack --dry-run"
   },
   "peerDependencies": {
-    "react": ">=17 <19",
-    "react-dom": ">=17 <19"
+    "react": ">=16 <20",
+    "react-dom": ">=16 <20"
   },
   "dependencies": {
     "url-join": "^5.0.0"

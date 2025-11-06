@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import join from "url-join";
-import Page404 from "./pages/404";
+import Page404 from "../pages/404";
+import type { GetComponent, Route } from "../types";
 import RouterContext from "./RouterContext";
-import type { GetComponent, Route } from "./types";
 
 const RouterProvider = ({ routes }: { routes: Route[] }) => {
   const [path, setPath] = useState(window.location.pathname);

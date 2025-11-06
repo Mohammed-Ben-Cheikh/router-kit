@@ -1,5 +1,5 @@
-import type { ReactNode, MouseEvent as ReactMouseEvent } from "react";
-import { useRouter } from "./useRouter";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { useRouter } from "../hooks/useRouter";
 
 function NavLink({
   to,

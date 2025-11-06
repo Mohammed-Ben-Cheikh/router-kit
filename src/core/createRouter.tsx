@@ -1,4 +1,4 @@
-import type { Route } from "./types";
+import type { Route } from "../types";
 
 // Normalize routes: remove leading slashes from paths and normalize children recursively
 function normalizeRoutes(routes: Route[]): Route[] {

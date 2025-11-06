@@ -1,0 +1,42 @@
+{
+  "name": "router-kit",
+  "author": {
+    "name": "Mohammed Ben Cheikh",
+    "email": "mohammed.bencheikh.dev@gmail.com",
+    "url": "https://mohammedbencheikh.com/"
+  },
+  "version": "0.1.1",
+  "description": "A small React routing provider library",
+  "main": "dist/index.js",
+  "types": "dist/*.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=17 <19",
+    "react-dom": ">=17 <19"
+  },
+  "dependencies": {
+    "url-join": "^5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/url-join": "^4.0.3"
+  },
+  "keywords": [
+    "react",
+    "route",
+    "provider",
+    "routing",
+    "route-provider"
+  ],
+  "license": "MIT"
+}

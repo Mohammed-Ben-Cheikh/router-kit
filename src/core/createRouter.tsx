@@ -2,9 +2,12 @@ import type { Route } from "../types";
 
 function normalizeRoutes(inputRoutes: Route[]): Route[] {
   return inputRoutes.map((route) => {
-    const normalizedPath = route.path?.startsWith("/")
-      ? route.path.replace(/^\/+/, "")
-      : route.path ?? "";
+    const pathArray = Array.isArray(route.path) ? route.path : [route.path];
+    const normalizedPath = pathArray
+      .map((path) =>
+        path?.startsWith("/") ? path.replace(/^\/+/, "") : path ?? ""
+      )
+      .join("|");
 
     const normalized: Route = {
       ...route,

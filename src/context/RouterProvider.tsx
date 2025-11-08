@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import join from "url-join";
 import Page404 from "../pages/404";
 import type { GetComponent, Route } from "../types";
@@ -7,20 +7,30 @@ import RouterContext from "./RouterContext";
 const RouterProvider = ({ routes }: { routes: Route[] }) => {
   const [path, setPath] = useState(window.location.pathname);
   let fullPathWithParams = "";
+  let page404: ReactNode = null;
 
   const pathValidation = (routeFullPath: string, currentPath: string) => {
-    const routeParts = routeFullPath.split("/").filter(Boolean);
-    const pathParts = currentPath.split("/").filter(Boolean);
+    const routePaths = routeFullPath.split("|");
 
-    if (routeParts.length !== pathParts.length) return false;
+    for (const routePath of routePaths) {
+      const routeParts = routePath.split("/").filter(Boolean);
+      const pathParts = currentPath.split("/").filter(Boolean);
 
-    for (let i = 0; i < routeParts.length; i++) {
-      const r = routeParts[i];
-      const p = pathParts[i];
-      if (r.startsWith(":")) continue;
-      if (r !== p) return false;
+      if (routeParts.length !== pathParts.length) continue;
+
+      let isMatch = true;
+      for (let i = 0; i < routeParts.length; i++) {
+        const r = routeParts[i];
+        const p = pathParts[i];
+        if (r.startsWith(":")) continue;
+        if (r !== p) {
+          isMatch = false;
+          break;
+        }
+      }
+      if (isMatch) return true;
     }
-    return true;
+    return false;
   };
 
   const getComponent: GetComponent = (
@@ -30,8 +40,9 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   ) => {
     for (const route of routesList) {
       const is404 = route.path === "404" || route.path === "/404";
-      if (is404 && route.component) {
-        // don't return here; keep as fallback at top-level
+      if (is404) {
+        page404 = route.component;
+        continue;
       }
 
       const fullPath = join(parentPath, `/${route.path}`);
@@ -52,10 +63,10 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
 
   fullPathWithParams = "";
   const matchedComponent = getComponent(routes, path);
-  const component = matchedComponent ?? <Page404 />;
+  const component = matchedComponent ?? (page404 || <Page404 />);
 
   const navigate = (to: string, options?: { replace?: boolean }) => {
-    if (options && options.replace) {
+    if (options?.replace) {
       window.history.replaceState({}, "", to);
     } else {
       window.history.pushState({}, "", to);

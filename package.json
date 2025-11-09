@@ -5,7 +5,7 @@
     "email": "mohammed.bencheikh.dev@gmail.com",
     "url": "https://mohammedbencheikh.com/"
   },
-  "version": "1.0.2",
+  "version": "1.2.0",
   "description": "A small React routing provider library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +22,6 @@
     "audit": "npm audit",
     "audit:fix": "npm audit fix",
     "preinstall": "npx npm-force-resolutions",
-    "security-check": "snyk test",
     "validate:deps": "npm ls"
   },
   "peerDependencies": {
@@ -37,7 +36,6 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/url-join": "^4.0.3",
-    "snyk": "^1.1130.0",
     "npm-force-resolutions": "^0.0.10"
   },
   "resolutions": {

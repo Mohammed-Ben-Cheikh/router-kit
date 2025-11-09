@@ -6,7 +6,7 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-      timezone: Africa/Casablanca
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 10
     target-branch: "main"
     labels:

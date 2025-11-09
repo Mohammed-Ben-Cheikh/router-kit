@@ -10,13 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
-          base-ref: ${{ github.base_ref }}
-          head-ref: ${{ github.head_ref }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}

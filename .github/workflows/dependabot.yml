@@ -1,16 +1,20 @@
 name: Dependabot
 on:
+  pull_request:
+    branches: [main]
   pull_request_target:
     branches: [main]
 
 permissions:
-  pull-requests: read
-  contents: read
+  pull-requests: write
+  contents: write
 
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    if: |
+      (github.actor == 'dependabot[bot]') &&
+      (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
     steps:
       - name: Dependabot metadata
         id: metadata

@@ -21,7 +21,6 @@
     "pack:verify": "npm pack --dry-run",
     "audit": "npm audit",
     "audit:fix": "npm audit fix",
-    "preinstall": "npx npm-force-resolutions",
     "validate:deps": "npm ls"
   },
   "peerDependencies": {
@@ -35,10 +34,9 @@
     "typescript": "^5.2.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@types/url-join": "^5.0.0",
-    "npm-force-resolutions": "^0.0.10"
+    "@types/url-join": "^5.0.0"
   },
-  "resolutions": {
+  "overrides": {
     "minimist": "^1.2.6",
     "node-fetch": "^2.6.7"
   },

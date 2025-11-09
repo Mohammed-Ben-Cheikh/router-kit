@@ -104,12 +104,17 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event_name }}" == "release" ]; then
-            echo "version=${{ steps.release_version.outputs.version }}" >> $GITHUB_OUTPUT
+            VERSION="${{ steps.release_version.outputs.version }}"
           elif [ "${{ steps.check.outputs.needs_bump }}" == "true" ]; then
-            echo "version=${{ steps.bump.outputs.version }}" >> $GITHUB_OUTPUT
+            VERSION="${{ steps.bump.outputs.version }}"
+          elif [ -n "${{ steps.check.outputs.current_version }}" ]; then
+            VERSION="${{ steps.check.outputs.current_version }}"
           else
-            echo "version=${{ steps.check.outputs.current_version }}" >> $GITHUB_OUTPUT
+            # Fallback: read from package.json directly
+            VERSION=$(node -p "require('./package.json').version")
           fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
 
       - name: Install dependencies
         run: npm ci

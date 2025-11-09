@@ -2,6 +2,11 @@ import { ReactNode, useEffect, useState } from "react";
 import join from "url-join";
 import Page404 from "../pages/404";
 import type { GetComponent, NavigateOptions, Route } from "../types";
+import {
+  createRouterError,
+  RouterErrorCode,
+  RouterErrors,
+} from "../utils/error/errors";
 import RouterContext from "./RouterContext";
 
 const validateUrl = (url: string): boolean => {
@@ -78,7 +83,24 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   ): string | false => {
     const routePaths = routeFullPath.split("|");
 
+    const staticPaths: string[] = [];
+    const dynamicPaths: string[] = [];
+
     for (const routePath of routePaths) {
+      if (routePath.includes(":")) {
+        dynamicPaths.push(routePath);
+      } else {
+        staticPaths.push(routePath);
+      }
+    }
+
+    for (const routePath of staticPaths) {
+      if (routePath === currentPath) {
+        return routePath;
+      }
+    }
+
+    for (const routePath of dynamicPaths) {
       const routeParts = routePath.split("/").filter(Boolean);
       const pathParts = currentPath.split("/").filter(Boolean);
 
@@ -89,6 +111,7 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
         const r = routeParts[i];
         const p = pathParts[i];
         if (r.startsWith(":")) continue;
+
         if (r !== p) {
           isMatch = false;
           break;
@@ -96,6 +119,7 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
       }
       if (isMatch) return routePath;
     }
+
     return false;
   };
 
@@ -136,7 +160,7 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
     }
 
     if (!validateUrl(to)) {
-      console.error(`RouterKit: Invalid URL "${to}"`);
+      RouterErrors.invalidRoute(to, "Invalid URL format");
       return;
     }
 
@@ -148,7 +172,15 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
       }
       setPath(to);
     } catch (error) {
-      console.error("RouterKit: Navigation failed", error);
+      const navError = createRouterError(
+        RouterErrorCode.NAVIGATION_ABORTED,
+        `Navigation to "${to}" failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { to, error }
+      );
+      console.error(navError.toConsoleMessage());
+      throw navError;
     }
   };
 

@@ -1,4 +1,5 @@
 import { DynamicComponents } from "../types";
+import { RouterErrors } from "../utils/error/errors";
 import { useParams } from "./useParams";
 
 export const useDynamicComponents: DynamicComponents = (
@@ -10,35 +11,24 @@ export const useDynamicComponents: DynamicComponents = (
   const variation = params[variationParam];
 
   if (variation == null) {
-    throw new Error(
-      `[router-kit] Parameter "${variationParam}" is not defined in route params`
-    );
+    RouterErrors.paramNotDefined(variationParam, Object.keys(params));
   }
 
   if (typeof variation !== "string") {
-    throw new Error(
-      `[router-kit] Parameter "${variationParam}" must be a string, got ${typeof variation}`
-    );
+    RouterErrors.paramInvalidType(variationParam, "string", typeof variation);
   }
 
   if (variation.trim() === "") {
-    throw new Error(
-      `[router-kit] Parameter "${variationParam}" cannot be an empty string`
+    RouterErrors.paramEmptyString(variationParam);
+  }
+
+  const component = dynamicComponentsObject[variation];
+  if (!component) {
+    RouterErrors.componentNotFound(
+      variation,
+      Object.keys(dynamicComponentsObject)
     );
   }
 
-  if (!variation) {
-    throw new Error(
-      `[router-kit] Parameter "${variationParam}" is required but not found in route params`
-    );
-  }
-  const component = dynamicComponentsObject[variation];
-  if (!component) {
-    throw new Error(
-      `[router-kit] Component not found for variation "${variation}". Available variations: ${Object.keys(
-        dynamicComponentsObject
-      ).join(", ")}`
-    );
-  }
   return component;
 };

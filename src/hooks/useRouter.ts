@@ -1,15 +1,12 @@
 import { useContext } from "react";
 import RouterContext from "../context/RouterContext";
+import type { RouterContextType } from "../types";
+import { RouterErrors } from "../utils/error/errors";
 
-export function useRouter() {
+export function useRouter(): RouterContextType {
   const ctx = useContext(RouterContext);
   if (!ctx) {
-    if (typeof window === "undefined") {
-      throw new Error(
-        "RouterKit: useRouter cannot be used during server side rendering"
-      );
-    }
-    throw new Error("RouterKit: useRouter must be used within RouterProvider");
+    RouterErrors.routerNotInitialized();
   }
-  return ctx;
+  return ctx as RouterContextType;
 }

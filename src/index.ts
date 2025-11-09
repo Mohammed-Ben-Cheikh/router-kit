@@ -16,5 +16,12 @@ export type {
   Route,
   RouterContextType,
   RouterError,
+  RouterKitError,
   Routes,
 } from "./types/index";
+
+export {
+  createRouterError,
+  RouterErrorCode,
+  RouterErrors,
+} from "./utils/error/errors";

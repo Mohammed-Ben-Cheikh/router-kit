@@ -48,3 +48,6 @@ export interface DynamicComponents {
     variationParam: string
   ): JSX.Element;
 }
+
+// Export error utilities
+export type { RouterKitError } from "../utils/error/errors";

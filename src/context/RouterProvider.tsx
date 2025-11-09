@@ -22,23 +22,6 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   const [path, setPath] = useState<string>("");
   const [fullPathWithParams, setFullPathWithParams] = useState<string>("");
   let page404: ReactNode = null;
-  const paths = routes.flatMap((route) => {
-    const collectPaths = (r: Route, parentPath = "/"): string[] => {
-      const fullPath = join(parentPath, `/${r.path}`);
-      const currentPaths = [fullPath];
-
-      if (r.children) {
-        const childPaths = r.children.flatMap((child) =>
-          collectPaths(child, fullPath)
-        );
-        return [...currentPaths, ...childPaths];
-      }
-
-      return currentPaths;
-    };
-
-    return collectPaths(route);
-  });
 
   useEffect(() => {
     setPath(window.location.pathname);
@@ -82,36 +65,15 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
     currentPath: string
   ): string | false => {
     const routePaths = routeFullPath.split("|");
-
-    const staticPaths: string[] = [];
-    const dynamicPaths: string[] = [];
-
     for (const routePath of routePaths) {
-      if (routePath.includes(":")) {
-        dynamicPaths.push(routePath);
-      } else {
-        staticPaths.push(routePath);
-      }
-    }
-
-    for (const routePath of staticPaths) {
-      if (routePath === currentPath) {
-        return routePath;
-      }
-    }
-
-    for (const routePath of dynamicPaths) {
       const routeParts = routePath.split("/").filter(Boolean);
       const pathParts = currentPath.split("/").filter(Boolean);
-
       if (routeParts.length !== pathParts.length) continue;
-
       let isMatch = true;
       for (let i = 0; i < routeParts.length; i++) {
         const r = routeParts[i];
         const p = pathParts[i];
         if (r.startsWith(":")) continue;
-
         if (r !== p) {
           isMatch = false;
           break;
@@ -119,7 +81,6 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
       }
       if (isMatch) return routePath;
     }
-
     return false;
   };
 
@@ -128,6 +89,9 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
     currentPath,
     parentPath = "/"
   ) => {
+    const staticRoutes: Route[] = [];
+    const dynamicRoutes: Route[] = [];
+
     for (const route of routesList) {
       const is404 = route.path === "404" || route.path === "/404";
       if (is404) {
@@ -135,6 +99,34 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
         continue;
       }
 
+      const pathArray = Array.isArray(route.path) ? route.path : [route.path];
+      const hasDynamicParams = pathArray.some((p) => p.includes(":"));
+
+      if (hasDynamicParams) {
+        dynamicRoutes.push(route);
+      } else {
+        staticRoutes.push(route);
+      }
+    }
+
+    for (const route of staticRoutes) {
+      const fullPath = join(parentPath, `/${route.path}`);
+
+      const matchedPath = pathValidation(fullPath, currentPath);
+      if (matchedPath) {
+        if (matchedPath !== fullPathWithParams) {
+          setFullPathWithParams(matchedPath);
+        }
+        return route.component;
+      }
+
+      if (route.children) {
+        const childMatch = getComponent(route.children, currentPath, fullPath);
+        if (childMatch) return childMatch;
+      }
+    }
+
+    for (const route of dynamicRoutes) {
       const fullPath = join(parentPath, `/${route.path}`);
 
       const matchedPath = pathValidation(fullPath, currentPath);

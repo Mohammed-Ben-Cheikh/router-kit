@@ -1,4 +1,3 @@
-# .github/workflows/release-publish.yml
 name: Publish Package
 
 on:

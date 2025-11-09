@@ -1,4 +1,3 @@
-# .github/workflows/dependency-review.yml
 name: Dependency Review
 
 on:

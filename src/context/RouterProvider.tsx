@@ -21,18 +21,37 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   useEffect(() => {
     setPath(window.location.pathname);
 
+    const patchHistory = (method: "pushState" | "replaceState") => {
+      const original = window.history[method];
+      return function (
+        this: History,
+        state: any,
+        title: string,
+        url?: string | URL | null
+      ) {
+        const result = original.apply(this, [state, title, url]);
+        window.dispatchEvent(new Event("locationchange"));
+        return result;
+      } as typeof original;
+    };
+
+    const originalPush = window.history.pushState;
+    const originalReplace = window.history.replaceState;
+    window.history.pushState = patchHistory("pushState");
+    window.history.replaceState = patchHistory("replaceState");
+
     const handleLocationChange = () => {
       setPath(window.location.pathname);
     };
 
     window.addEventListener("popstate", handleLocationChange);
-    window.addEventListener("pushState", handleLocationChange);
-    window.addEventListener("replaceState", handleLocationChange);
+    window.addEventListener("locationchange", handleLocationChange);
 
     return () => {
+      window.history.pushState = originalPush;
+      window.history.replaceState = originalReplace;
       window.removeEventListener("popstate", handleLocationChange);
-      window.removeEventListener("pushState", handleLocationChange);
-      window.removeEventListener("replaceState", handleLocationChange);
+      window.removeEventListener("locationchange", handleLocationChange);
     };
   }, []);
 
@@ -91,6 +110,10 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   };
 
   const navigate = (to: string, options?: NavigateOptions) => {
+    if (!/^https?:\/\//i.test(to)) {
+      to = to.startsWith("/") ? to : `/${to}`;
+    }
+
     if (!validateUrl(to)) {
       console.error(`RouterKit: Invalid URL "${to}"`);
       return;

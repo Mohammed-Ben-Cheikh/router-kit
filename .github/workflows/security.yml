@@ -43,6 +43,11 @@ jobs:
         uses: github/codeql-action/analyze@v4
 
       - name: Dependency Review
+        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
+          # Provide explicit base/head refs when running on PR contexts. On push events this step is skipped to avoid
+          # the error: "Both a base ref and head ref must be provided..."
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}

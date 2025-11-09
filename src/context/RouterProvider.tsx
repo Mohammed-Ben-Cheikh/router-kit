@@ -1,13 +1,40 @@
 import { ReactNode, useEffect, useState } from "react";
 import join from "url-join";
 import Page404 from "../pages/404";
-import type { GetComponent, Route } from "../types";
+import type { GetComponent, NavigateOptions, Route } from "../types";
 import RouterContext from "./RouterContext";
 
+const validateUrl = (url: string): boolean => {
+  try {
+    new URL(url, window.location.origin);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const RouterProvider = ({ routes }: { routes: Route[] }) => {
-  const [path, setPath] = useState(window.location.pathname);
-  let fullPathWithParams = "";
+  const [path, setPath] = useState<string>("");
+  const [fullPathWithParams, setFullPathWithParams] = useState<string>("");
   let page404: ReactNode = null;
+
+  useEffect(() => {
+    setPath(window.location.pathname);
+
+    const handleLocationChange = () => {
+      setPath(window.location.pathname);
+    };
+
+    window.addEventListener("popstate", handleLocationChange);
+    window.addEventListener("pushState", handleLocationChange);
+    window.addEventListener("replaceState", handleLocationChange);
+
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.removeEventListener("pushState", handleLocationChange);
+      window.removeEventListener("replaceState", handleLocationChange);
+    };
+  }, []);
 
   const pathValidation = (routeFullPath: string, currentPath: string) => {
     const routePaths = routeFullPath.split("|");
@@ -48,7 +75,9 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
       const fullPath = join(parentPath, `/${route.path}`);
 
       if (pathValidation(fullPath, currentPath)) {
-        fullPathWithParams = fullPath;
+        if (fullPath !== fullPathWithParams) {
+          setFullPathWithParams(fullPath);
+        }
         return route.component;
       }
 
@@ -61,24 +90,26 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
     return null;
   };
 
-  fullPathWithParams = "";
-  const matchedComponent = getComponent(routes, path);
-  const component = matchedComponent ?? (page404 || <Page404 />);
-
-  const navigate = (to: string, options?: { replace?: boolean }) => {
-    if (options?.replace) {
-      window.history.replaceState({}, "", to);
-    } else {
-      window.history.pushState({}, "", to);
+  const navigate = (to: string, options?: NavigateOptions) => {
+    if (!validateUrl(to)) {
+      console.error(`RouterKit: Invalid URL "${to}"`);
+      return;
     }
-    setPath(to);
+
+    try {
+      if (options?.replace) {
+        window.history.replaceState(options?.state || {}, "", to);
+      } else {
+        window.history.pushState(options?.state || {}, "", to);
+      }
+      setPath(to);
+    } catch (error) {
+      console.error("RouterKit: Navigation failed", error);
+    }
   };
 
-  useEffect(() => {
-    const handlePop = () => setPath(window.location.pathname);
-    window.addEventListener("popstate", handlePop);
-    return () => window.removeEventListener("popstate", handlePop);
-  }, []);
+  const matchedComponent = getComponent(routes, path);
+  const component = matchedComponent ?? (page404 || <Page404 />);
 
   return (
     <RouterContext.Provider value={{ path, fullPathWithParams, navigate }}>
@@ -86,4 +117,5 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
     </RouterContext.Provider>
   );
 };
+
 export default RouterProvider;

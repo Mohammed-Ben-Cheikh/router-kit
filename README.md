@@ -122,6 +122,7 @@ Exemple :
 - `useRouter()` : hook interne retournant le contexte `{ path, fullPathWithParams, navigate }`. Lance une erreur si utilisé hors du provider.
 - `useParams()` : renvoie un objet clé/valeur pour les segments paramétrés de la route (ex: `{ id: "42" }`). Se base sur `fullPathWithParams` et `path`.
 - `useQuery()` : parse `window.location.search` et renvoie un objet `{ [key]: value }`.
+- `useLocation()` : renvoie un objet avec les informations de localisation courante : `{ pathname, search, hash, state }`. Utile pour accéder aux détails de l'URL actuelle.
 
 ## Exemple complet
 

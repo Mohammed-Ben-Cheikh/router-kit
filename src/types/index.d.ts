@@ -20,8 +20,24 @@ export interface Routes {
   path: string;
 }
 
+export interface NavigateOptions {
+  replace?: boolean;
+  state?: any;
+}
+
 export interface RouterContextType {
   path: string;
   fullPathWithParams: string;
-  navigate: (to: string, options?: { replace?: boolean }) => void;
+  navigate: (to: string, options?: NavigateOptions) => void;
+}
+
+export interface Location {
+  pathname: string;
+  search: string;
+  hash: string;
+  state: any;
+}
+
+export interface RouterError extends Error {
+  code: "NAVIGATION_ABORTED" | "ROUTER_NOT_FOUND" | "INVALID_ROUTE";
 }

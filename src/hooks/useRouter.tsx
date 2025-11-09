@@ -29,18 +29,12 @@ import RouterContext from "../context/RouterContext";
 export function useRouter() {
   const ctx = useContext(RouterContext);
   if (!ctx) {
-    const message =
-      "Common hooks and components must be used within the RouterProvider returned by createRouter(). Wrap your app with the RouterProvider.";
-    if (typeof window !== "undefined" && window.console && console.error) {
-      console.error(
-        "%cRouterKit%c " + message,
-        "color: #fff; background: #d9534f; font-weight: 700; padding: 2px 6px; border-radius: 3px;",
-        "color: #d9534f;"
+    if (typeof window === "undefined") {
+      throw new Error(
+        "RouterKit: useRouter cannot be used during server side rendering"
       );
-    } else {
-      console.error("RouterKit: " + message);
     }
-    throw new Error("RouterKit: " + message);
+    throw new Error("RouterKit: useRouter must be used within RouterProvider");
   }
   return ctx;
 }

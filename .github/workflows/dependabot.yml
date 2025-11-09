@@ -17,7 +17,6 @@ jobs:
       (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
     steps:
       - name: Dependabot metadata
-        id: metadata
         uses: dependabot/fetch-metadata@v2.4.0
         with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"  # Automatically provided

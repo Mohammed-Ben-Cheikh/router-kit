@@ -5,7 +5,7 @@
     "email": "mohammed.bencheikh.dev@gmail.com",
     "url": "https://mohammedbencheikh.com/"
   },
-  "version": "0.2.5",
+  "version": "1.0.0",
   "description": "A small React routing provider library",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

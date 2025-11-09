@@ -41,6 +41,16 @@ npm install router-kit
 
 N.B. `react` et `react-dom` sont des peerDependencies ; installez-les dans votre projet si nécessaire.
 
+## Important
+
+⚠️ Tous les hooks et composants de router-kit doivent être utilisés à l'intérieur du `RouterProvider`. Assurez-vous de wrapper votre application avec le `RouterProvider` au plus haut niveau possible.
+
+Si vous utilisez des composants ou hooks en dehors du `RouterProvider`, vous obtiendrez une erreur explicite :
+
+```
+RouterKit: Common hooks and components must be used within the RouterProvider returned by createRouter(). Wrap your app with the RouterProvider.
+```
+
 ## Concepts clés
 
 - Route : objet avec `path` (string) et `component` (JSX.Element). Les `children` sont supportés pour construire des arborescences.
@@ -117,28 +127,23 @@ Exemple :
 
 ```tsx
 import React from "react";
-import { createRouter, RouterProvider, Link } from "router-kit";
+import { createRouter, RouterProvider } from "router-kit";
 
-const Home = <div>Accueil</div>;
-const About = <div>À propos</div>;
+const Home = () => <div>Accueil</div>;
+const About = () => <div>À propos</div>;
 
 const routes = createRouter([
-  { path: "/", component: Home },
-  { path: "about", component: About },
+  { path: "/", component: <Home /> },
+  { path: "about", component: <About /> },
   { path: "/404", component: <div>Not Found</div> },
 ]);
 
-export default function App() {
-  return (
-    <div>
-      <nav>
-        <Link to="/">Home</Link>
-        <Link to="/about">About</Link>
-      </nav>
-      <RouterProvider routes={routes} />
-    </div>
-  );
+// Les composants de navigation doivent être à l'intérieur du RouterProvider
+function App() {
+  return <RouterProvider routes={routes} />;
 }
+
+export default App;
 ```
 
 ## Routes et 404

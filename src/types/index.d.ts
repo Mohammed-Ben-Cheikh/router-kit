@@ -1,7 +1,7 @@
 import { JSX } from "react";
 
 export interface Route {
-  path: string;
+  path: string | string[];
   component: JSX.Element;
   children?: Route[];
 }

@@ -1,4 +1,4 @@
-name: Auto Publish on Main
+name: Publish Package
 
 on:
   push:
@@ -7,14 +7,19 @@ on:
       - "src/**"
       - "package.json"
       - "tsconfig.json"
+    tags:
+      - "v*"
+  release:
+    types: [created]
   workflow_dispatch: {}
 
 permissions:
-  contents: write
-  packages: write
+  id-token: write # Required for OIDC token generation
+  contents: write # Required for creating releases and pushing tags
+  packages: write # Required for publishing packages
 
 concurrency:
-  group: auto-publish
+  group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -32,15 +37,38 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      # Ensure npm 11.5.1 or later is installed for OIDC support
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Configure git
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      # Handle version from release tag (if triggered by release)
+      - name: Sync version from release tag
+        if: github.event_name == 'release'
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then
+            echo "No release tag found on this event. Expected on 'release: created'." >&2
+            exit 1
+          fi
+          # Strip leading 'v' if present (e.g., v1.2.3 -> 1.2.3)
+          VERSION="${TAG#v}"
+          echo "Setting package.json version to $VERSION (from tag $TAG)"
+          npm version "$VERSION" --no-git-tag-version
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        id: release_version
+
+      # Handle version for main branch pushes (auto-bump)
       - name: Check if version needs bump
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: check
         run: |
           # Get current version
@@ -57,8 +85,8 @@ jobs:
           fi
 
       - name: Bump patch version and create tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.check.outputs.needs_bump == 'true'
         id: bump
-        if: steps.check.outputs.needs_bump == 'true'
         run: |
           # Bump patch without auto-commit/tag first
           npm version patch --no-git-tag-version
@@ -72,10 +100,12 @@ jobs:
           git push origin main || true
           git push origin --tags || true
 
-      - name: Set version for existing tag
+      - name: Set version for publish
         id: version
         run: |
-          if [ "${{ steps.check.outputs.needs_bump }}" == "true" ]; then
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "version=${{ steps.release_version.outputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.check.outputs.needs_bump }}" == "true" ]; then
             echo "version=${{ steps.bump.outputs.version }}" >> $GITHUB_OUTPUT
           else
             echo "version=${{ steps.check.outputs.current_version }}" >> $GITHUB_OUTPUT
@@ -84,11 +114,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run tests
+        run: npm test --if-present
+
       - name: Typecheck
-        run: npm run -s typecheck
+        run: npm run typecheck --if-present
 
       - name: Build
-        run: npm run -s build
+        run: npm run build --if-present
 
       - name: Check if version already published
         id: check_npm
@@ -112,7 +145,7 @@ jobs:
           npm publish --access public
 
       - name: Create GitHub Release
-        if: steps.check_npm.outputs.already_published != 'true'
+        if: steps.check_npm.outputs.already_published != 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -41,3 +41,10 @@ export interface Location {
 export interface RouterError extends Error {
   code: "NAVIGATION_ABORTED" | "ROUTER_NOT_FOUND" | "INVALID_ROUTE";
 }
+
+export interface DynamicComponents {
+  (
+    dynamicComponentsObject: Record<string, JSX.Element>,
+    variationParam: string
+  ): JSX.Element;
+}

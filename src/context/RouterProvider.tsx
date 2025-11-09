@@ -17,6 +17,23 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
   const [path, setPath] = useState<string>("");
   const [fullPathWithParams, setFullPathWithParams] = useState<string>("");
   let page404: ReactNode = null;
+  const paths = routes.flatMap((route) => {
+    const collectPaths = (r: Route, parentPath = "/"): string[] => {
+      const fullPath = join(parentPath, `/${r.path}`);
+      const currentPaths = [fullPath];
+
+      if (r.children) {
+        const childPaths = r.children.flatMap((child) =>
+          collectPaths(child, fullPath)
+        );
+        return [...currentPaths, ...childPaths];
+      }
+
+      return currentPaths;
+    };
+
+    return collectPaths(route);
+  });
 
   useEffect(() => {
     setPath(window.location.pathname);
@@ -55,7 +72,10 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
     };
   }, []);
 
-  const pathValidation = (routeFullPath: string, currentPath: string) => {
+  const pathValidation = (
+    routeFullPath: string,
+    currentPath: string
+  ): string | false => {
     const routePaths = routeFullPath.split("|");
 
     for (const routePath of routePaths) {
@@ -74,7 +94,7 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
           break;
         }
       }
-      if (isMatch) return true;
+      if (isMatch) return routePath;
     }
     return false;
   };
@@ -93,9 +113,10 @@ const RouterProvider = ({ routes }: { routes: Route[] }) => {
 
       const fullPath = join(parentPath, `/${route.path}`);
 
-      if (pathValidation(fullPath, currentPath)) {
-        if (fullPath !== fullPathWithParams) {
-          setFullPathWithParams(fullPath);
+      const matchedPath = pathValidation(fullPath, currentPath);
+      if (matchedPath) {
+        if (matchedPath !== fullPathWithParams) {
+          setFullPathWithParams(matchedPath);
         }
         return route.component;
       }

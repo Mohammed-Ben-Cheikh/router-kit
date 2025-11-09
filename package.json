@@ -5,25 +5,17 @@
     "email": "mohammed.bencheikh.dev@gmail.com",
     "url": "https://mohammedbencheikh.com/"
   },
-  "version": "1.2.3",
+  "version": "1.2.5",
   "description": "A small React routing provider library",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "import": "./dist/index.mjs"
-    }
-  },
   "files": [
     "dist"
   ],
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "tsup",
-    "build:watch": "tsup --watch",
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
     "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pack:verify": "npm pack --dry-run",
@@ -39,11 +31,9 @@
     "url-join": "^5.0.0"
   },
   "devDependencies": {
+    "typescript": "^5.2.0",
     "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@types/url-join": "^5.0.0",
-    "tsup": "8.5.0",
-    "typescript": "^5.2.0"
+    "@types/react-dom": "^19.2.2"
   },
   "overrides": {
     "minimist": "^1.2.6",

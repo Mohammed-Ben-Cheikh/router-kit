@@ -20,6 +20,18 @@ jobs:
           node-version: "18"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Sync version from release tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$TAG" ]; then
+            echo "No release tag found on this event. Expected on 'release: created'." >&2
+            exit 1
+          fi
+          # Strip leading 'v' if present (e.g., v1.2.3 -> 1.2.3)
+          VERSION="${TAG#v}"
+          echo "Setting package.json version to $VERSION (from tag $TAG)"
+          npm version "$VERSION" --no-git-tag-version
+
       - name: Install dependencies
         run: npm ci
 

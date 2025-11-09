@@ -12,6 +12,8 @@ updates:
     labels:
       - "dependencies"
       - "security"
+      - "pull_request"
+      - "pull_request_target"
     ignore:
       - dependency-name: "react"
         versions: ["17.x", "18.x"]
@@ -26,3 +28,5 @@ updates:
     labels:
       - "ci"
       - "dependencies"
+      - "pull_request"
+      - "pull_request_target"

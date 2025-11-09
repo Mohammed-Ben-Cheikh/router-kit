@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: Africa/Casablanca
+    open-pull-requests-limit: 10
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "security"
+    ignore:
+      - dependency-name: "react"
+        versions: ["17.x", "18.x"]
+    commit-message:
+      prefix: "⬆️ deps"
+    versioning-strategy: auto
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci"
+      - "dependencies"

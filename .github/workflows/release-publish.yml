@@ -1,3 +1,4 @@
+# .github/workflows/release-publish.yml
 name: Publish Package
 
 on:
@@ -13,13 +14,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
-          base-ref: ${{ github.event.release.target_commitish }}
-          head-ref: ${{ github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4

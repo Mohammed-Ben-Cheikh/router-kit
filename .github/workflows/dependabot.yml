@@ -1,7 +1,5 @@
 name: Dependabot
 on:
-  pull_request:
-    branches: [main]
   pull_request_target:
     branches: [main]
 
@@ -12,11 +10,17 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: |
-      (github.actor == 'dependabot[bot]') &&
-      (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
+    if: github.actor == 'dependabot[bot]'
     steps:
       - name: Dependabot metadata
+        id: metadata
         uses: dependabot/fetch-metadata@v2.4.0
         with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}" # Automatically provided
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      
+      - name: Enable auto-merge for Dependabot PRs
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

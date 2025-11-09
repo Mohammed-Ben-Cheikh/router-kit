@@ -29,10 +29,10 @@ jobs:
         run: npm audit
 
       - name: Dependabot Alert Check
-        if: github.event_name == 'pull_request'
+        if: github.actor == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@v2.4.0
         with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}" # Automatically provided
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Run CodeQL Analysis
         uses: github/codeql-action/init@v4

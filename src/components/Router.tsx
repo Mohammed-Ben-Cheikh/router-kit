@@ -1,5 +1,6 @@
 import { type ReactNode, Children, isValidElement } from "react";
 import RouterProvider from "../context/RouterProvider";
+import createRouter from "../core/createRouter";
 import type { Route as RouteType } from "../types";
 import { Route, RouteProps } from "./route";
 
@@ -63,8 +64,7 @@ function extractRoutesFromJSX(children: ReactNode): RouteType[] {
  */
 const Router = ({ children }: { children: ReactNode }) => {
   const routes = extractRoutesFromJSX(children);
-
-  return <RouterProvider routes={routes} />;
+  return <RouterProvider routes={createRouter(routes)} />;
 };
 
 export default Router;

@@ -34,6 +34,8 @@ npm install router-kit
 
 ### Basic Setup
 
+**Programmatic Approach (Traditional):**
+
 ```tsx
 import React from "react";
 import { createRouter, RouterProvider, Link } from "router-kit";
@@ -55,6 +57,31 @@ function App() {
 
 export default App;
 ```
+
+**Declarative Approach (New in v1.3.1):**
+
+```tsx
+import React from "react";
+import { Router, Route, Link } from "router-kit";
+
+// 1. Define your components
+const Home = () => <h1>Home Page</h1>;
+const About = () => <h1>About Page</h1>;
+
+// 2. Use declarative JSX routing
+function App() {
+  return (
+    <Router>
+      <Route path="/" element={<Home />} />
+      <Route path="/about" element={<About />} />
+    </Router>
+  );
+}
+
+export default App;
+```
+
+> 🆕 **New in v1.3.1**: Declarative routing with `<Router>` and `<Route>` components! Choose the approach that fits your style.
 
 ### Navigation
 
@@ -259,20 +286,21 @@ const routes = createRouter([
 
 ## Feature Matrix
 
-| Feature               | Status | Documentation                                    |
-| --------------------- | ------ | ------------------------------------------------ |
-| Static Routes         | ✅     | [Docs](./DOCUMENTATION.md#routes)                |
-| Dynamic Routes        | ✅     | [Docs](./DOCUMENTATION.md#useparams)             |
-| Nested Routes         | ✅     | [Docs](./DOCUMENTATION.md#nested-routes)         |
-| Multiple Path Aliases | ✅     | [Docs](./DOCUMENTATION.md#multiple-path-aliases) |
-| Query Parameters      | ✅     | [Docs](./DOCUMENTATION.md#usequery)              |
-| Navigation State      | ✅     | [Docs](./DOCUMENTATION.md#navigation-state)      |
-| Custom 404 Pages      | ✅     | [Docs](./DOCUMENTATION.md#custom-404-pages)      |
-| TypeScript Support    | ✅     | [Docs](./DOCUMENTATION.md#typescript-support)    |
-| Error Handling        | ✅     | [Docs](./DOCUMENTATION.md#error-handling)        |
-| Dynamic Components    | ✅     | [Docs](./API_REFERENCE.md#usedynamiccomponents)  |
-| Hash Routing          | ⏳     | Planned                                          |
-| Regex Routes          | ⏳     | Planned                                          |
+| Feature                 | Status     | Documentation                                    |
+| ----------------------- | ---------- | ------------------------------------------------ |
+| Static Routes           | ✅         | [Docs](./DOCUMENTATION.md#routes)                |
+| Dynamic Routes          | ✅         | [Docs](./DOCUMENTATION.md#useparams)             |
+| Nested Routes           | ✅         | [Docs](./DOCUMENTATION.md#nested-routes)         |
+| Multiple Path Aliases   | ✅         | [Docs](./DOCUMENTATION.md#multiple-path-aliases) |
+| Query Parameters        | ✅         | [Docs](./DOCUMENTATION.md#usequery)              |
+| Navigation State        | ✅         | [Docs](./DOCUMENTATION.md#navigation-state)      |
+| Custom 404 Pages        | ✅         | [Docs](./DOCUMENTATION.md#custom-404-pages)      |
+| TypeScript Support      | ✅         | [Docs](./DOCUMENTATION.md#typescript-support)    |
+| Error Handling          | ✅         | [Docs](./DOCUMENTATION.md#error-handling)        |
+| Dynamic Components      | ✅         | [Docs](./API_REFERENCE.md#usedynamiccomponents)  |
+| **Declarative Routing** | ✅ **NEW** | [Docs](./DECLARATIVE_ROUTING.md)                 |
+| Hash Routing            | ⏳         | Planned                                          |
+| Regex Routes            | ⏳         | Planned                                          |
 
 ---
 
@@ -282,7 +310,7 @@ const routes = createRouter([
 
 ```tsx
 // Core
-import { createRouter, RouterProvider } from "router-kit";
+import { createRouter, RouterProvider, Router, Route } from "router-kit";
 
 // Components
 import { Link, NavLink } from "router-kit";
@@ -311,6 +339,8 @@ import { RouterErrorCode, RouterErrors, createRouterError } from "router-kit";
 
 ### Route Patterns
 
+**Programmatic Approach:**
+
 ```tsx
 // Static route
 { path: "about", component: <About /> }
@@ -335,6 +365,30 @@ import { RouterErrorCode, RouterErrors, createRouterError } from "router-kit";
 
 // 404 page
 { path: "/404", component: <NotFound /> }
+```
+
+**Declarative Approach:**
+
+```tsx
+// Static route
+<Route path="/about" element={<About />} />
+
+// Dynamic parameter
+<Route path="/users/:id" element={<UserProfile />} />
+
+// Multiple parameters
+<Route path="/posts/:category/:slug" element={<BlogPost />} />
+
+// Multiple paths
+<Route path={["/about", "/about-us"]} element={<About />} />
+
+// Nested routes
+<Route path="/dashboard" element={<Dashboard />}>
+  <Route path="settings" element={<Settings />} />
+</Route>
+
+// 404 page
+<Route path="/404" element={<NotFound />} />
 ```
 
 ### Hook Usage

@@ -1,6 +1,6 @@
 # Declarative Routing with Router and Route Components
 
-Router-Kit now supports declarative routing using JSX components, providing an alternative to the programmatic `createRouter` approach. This method is more intuitive and familiar to developers coming from React Router.
+Router-Kit supports declarative routing using JSX components, providing an alternative to the programmatic `createRouter` approach. This method is more intuitive and familiar to developers coming from React Router.
 
 ## Basic Usage
 
@@ -16,12 +16,48 @@ import { Router, Route } from "router-kit";
 function App() {
   return (
     <Router>
-      <Route path="/" element={<Home />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/404" element={<NotFound />} />
+      <Route path="/" component={<Home />} />
+      <Route path="/about" component={<About />} />
+      <Route path="/contact" component={<Contact />} />
+      <Route path="/404" component={<NotFound />} />
     </Router>
   );
+}
+```
+
+## Router Props
+
+```tsx
+interface RouterProps {
+  children: ReactNode; // Route children as JSX
+  basename?: string; // Base path for all routes (e.g., "/app")
+  fallback?: ReactNode; // Fallback during lazy loading/suspense
+}
+```
+
+### Example with All Props
+
+```tsx
+<Router basename="/my-app" fallback={<Loading />}>
+  <Route path="/" component={<Home />} />
+</Router>
+```
+
+## Route Props
+
+```tsx
+interface RouteProps {
+  path: string | string[]; // Path pattern(s)
+  component: ReactElement; // Component to render
+  children?: ReactElement<RouteProps>[]; // Nested routes
+  index?: boolean; // Index route flag
+  lazy?: LazyExoticComponent<ComponentType>; // Lazy-loaded component
+  loader?: RouteLoader; // Data fetching function
+  errorElement?: ReactElement; // Error boundary element
+  redirectTo?: string; // Redirect destination
+  guard?: RouteGuard; // Route protection function
+  meta?: RouteMeta; // Route metadata
+  caseSensitive?: boolean; // Case-sensitive matching
 }
 ```
 
@@ -31,8 +67,8 @@ function App() {
 
 ```tsx
 <Router>
-  <Route path="/users/:id" element={<UserProfile />} />
-  <Route path="/posts/:category/:slug" element={<BlogPost />} />
+  <Route path="/users/:id" component={<UserProfile />} />
+  <Route path="/posts/:category/:slug" component={<BlogPost />} />
 </Router>
 ```
 
@@ -40,7 +76,17 @@ function App() {
 
 ```tsx
 <Router>
-  <Route path={["/about", "/about-us", "/info"]} element={<About />} />
+  <Route path={["/about", "/about-us", "/info"]} component={<About />} />
+</Router>
+```
+
+### Catch-All Routes
+
+```tsx
+<Router>
+  <Route path="/" component={<Home />} />
+  <Route path="/about" component={<About />} />
+  <Route path="*" component={<NotFound />} />
 </Router>
 ```
 
@@ -48,11 +94,86 @@ function App() {
 
 ```tsx
 <Router>
-  <Route path="/dashboard" element={<DashboardLayout />}>
-    <Route path="overview" element={<Overview />} />
-    <Route path="settings" element={<Settings />} />
-    <Route path="profile" element={<Profile />} />
+  <Route path="/dashboard" component={<DashboardLayout />}>
+    <Route path="overview" component={<Overview />} />
+    <Route path="settings" component={<Settings />} />
+    <Route path="profile" component={<Profile />} />
   </Route>
+</Router>
+```
+
+### Route Guards (Authentication)
+
+```tsx
+const requireAuth = ({ pathname }) => {
+  return isAuthenticated() || "/login";
+};
+
+<Router>
+  <Route path="/login" component={<Login />} />
+  <Route path="/dashboard" component={<Dashboard />} guard={requireAuth} />
+  <Route
+    path="/admin"
+    component={<Admin />}
+    guard={() => isAdmin() || "/unauthorized"}
+  />
+</Router>;
+```
+
+### Route Loaders (Data Fetching)
+
+```tsx
+<Router>
+  <Route
+    path="/user/:id"
+    component={<UserProfile />}
+    loader={async ({ params, signal }) => {
+      const response = await fetch(`/api/users/${params.id}`, { signal });
+      return response.json();
+    }}
+  />
+</Router>;
+
+// In UserProfile component
+function UserProfile() {
+  const user = useLoaderData();
+  return <div>{user.name}</div>;
+}
+```
+
+### Route Metadata
+
+```tsx
+<Router>
+  <Route
+    path="/about"
+    component={<About />}
+    meta={{
+      title: "About Us",
+      description: "Learn about our company",
+      requiresAuth: false,
+    }}
+  />
+</Router>;
+
+// In component
+function About() {
+  const meta = useRouteMeta();
+
+  useEffect(() => {
+    if (meta?.title) document.title = meta.title;
+  }, [meta]);
+
+  return <div>About page</div>;
+}
+```
+
+### Redirects
+
+```tsx
+<Router>
+  <Route path="/old-page" redirectTo="/new-page" />
+  <Route path="/new-page" component={<NewPage />} />
 </Router>
 ```
 
@@ -60,14 +181,14 @@ function App() {
 
 ```tsx
 <Router>
-  <Route path="/admin" element={<AdminLayout />}>
-    <Route path="users" element={<UserManagement />}>
-      <Route path=":id" element={<UserDetails />} />
-      <Route path=":id/edit" element={<EditUser />} />
+  <Route path="/admin" component={<AdminLayout />}>
+    <Route path="users" component={<UserManagement />}>
+      <Route path=":id" component={<UserDetails />} />
+      <Route path=":id/edit" component={<EditUser />} />
     </Route>
-    <Route path="settings" element={<AdminSettings />}>
-      <Route path="general" element={<GeneralSettings />} />
-      <Route path="security" element={<SecuritySettings />} />
+    <Route path="settings" component={<AdminSettings />}>
+      <Route path="general" component={<GeneralSettings />} />
+      <Route path="security" component={<SecuritySettings />} />
     </Route>
   </Route>
 </Router>
@@ -76,16 +197,37 @@ function App() {
 ## Complete Example
 
 ```tsx
-import React from "react";
-import { Router, Route, Link, useParams, useRouter } from "router-kit";
+import React, { lazy, Suspense } from "react";
+import {
+  Router,
+  Route,
+  Link,
+  NavLink,
+  useParams,
+  useRouter,
+  useLoaderData,
+} from "router-kit";
+
+// Lazy loaded components
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 
 // Components
 const Home = () => (
   <div>
     <h1>Welcome</h1>
     <nav>
-      <Link to="/about">About</Link> |<Link to="/users/123">User 123</Link> |
-      <Link to="/dashboard">Dashboard</Link>
+      <NavLink to="/" activeClassName="active" end>
+        Home
+      </NavLink>
+      <NavLink to="/about" activeClassName="active">
+        About
+      </NavLink>
+      <NavLink to="/users/123" activeClassName="active">
+        User 123
+      </NavLink>
+      <NavLink to="/dashboard" activeClassName="active">
+        Dashboard
+      </NavLink>
     </nav>
   </div>
 );
@@ -99,20 +241,13 @@ const About = () => (
 
 const UserProfile = () => {
   const { id } = useParams();
+  const user = useLoaderData(); // Data from loader
+
   return (
     <div>
       <h1>User Profile: {id}</h1>
+      {user && <p>Name: {user.name}</p>}
       <Link to="/">Home</Link>
-    </div>
-  );
-};
-
-const Dashboard = () => {
-  const { navigate } = useRouter();
-  return (
-    <div>
-      <h1>Dashboard</h1>
-      <button onClick={() => navigate("/dashboard/settings")}>Settings</button>
     </div>
   );
 };
@@ -131,19 +266,31 @@ const NotFound = () => (
   </div>
 );
 
+const Loading = () => <div>Loading...</div>;
+
+// Auth guard
+const requireAuth = () => localStorage.getItem("token") || "/login";
+
 // App with declarative routing
 function App() {
   return (
-    <Router>
-      <Route path="/" element={<Home />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/users/:id" element={<UserProfile />} />
+    <Router fallback={<Loading />}>
+      <Route path="/" component={<Home />} />
+      <Route path="/about" component={<About />} meta={{ title: "About Us" }} />
+      <Route
+        path="/users/:id"
+        component={<UserProfile />}
+        loader={async ({ params }) => {
+          const res = await fetch(`/api/users/${params.id}`);
+          return res.json();
+        }}
+      />
 
-      <Route path="/dashboard" element={<Dashboard />}>
-        <Route path="settings" element={<Settings />} />
+      <Route path="/dashboard" component={<Dashboard />} guard={requireAuth}>
+        <Route path="settings" component={<Settings />} />
       </Route>
 
-      <Route path="/404" element={<NotFound />} />
+      <Route path="*" component={<NotFound />} />
     </Router>
   );
 }
@@ -153,17 +300,18 @@ export default App;
 
 ## Comparison: Programmatic vs Declarative
 
-### Programmatic Approach (Existing)
+### Programmatic Approach
 
 ```tsx
 import { createRouter, RouterProvider } from "router-kit";
 
 const routes = createRouter([
   { path: "/", component: <Home /> },
-  { path: "/about", component: <About /> },
+  { path: "/about", component: <About />, meta: { title: "About" } },
   {
     path: "/dashboard",
     component: <Dashboard />,
+    guard: () => isAuthenticated() || "/login",
     children: [{ path: "settings", component: <Settings /> }],
   },
 ]);
@@ -173,7 +321,7 @@ function App() {
 }
 ```
 
-### Declarative Approach (New)
+### Declarative Approach
 
 ```tsx
 import { Router, Route } from "router-kit";
@@ -181,11 +329,15 @@ import { Router, Route } from "router-kit";
 function App() {
   return (
     <Router>
-      <Route path="/" element={<Home />} />
-      <Route path="/about" element={<About />} />
+      <Route path="/" component={<Home />} />
+      <Route path="/about" component={<About />} meta={{ title: "About" }} />
 
-      <Route path="/dashboard" element={<Dashboard />}>
-        <Route path="settings" element={<Settings />} />
+      <Route
+        path="/dashboard"
+        component={<Dashboard />}
+        guard={() => isAuthenticated() || "/login"}
+      >
+        <Route path="settings" component={<Settings />} />
       </Route>
     </Router>
   );
@@ -194,96 +346,45 @@ function App() {
 
 ## When to Use Each Approach
 
-### Use Declarative Routing When:
+### Use Declarative Routing When
 
 - You prefer JSX-based syntax
 - You have deeply nested routes
-- You want visual hierarchy in your route definitions
-- You're familiar with React Router
-- You need better readability for complex routing structures
+- You want visual route hierarchy in code
+- Coming from React Router background
 
-### Use Programmatic Routing When:
+### Use Programmatic Routing When
 
-- You need to generate routes dynamically
-- You prefer explicit programmatic control
-- You have simple routing requirements
-- You want more compact code for basic applications
-
-## API Reference
-
-### Router Component
-
-```tsx
-interface RouterProps {
-  children: ReactNode; // Route components
-}
-```
-
-### Route Component
-
-```tsx
-interface RouteProps {
-  path: string | string[]; // Path pattern(s) to match
-  element: ReactElement; // Component to render
-  children?: ReactElement[]; // Nested Route components
-}
-```
-
-## Migration Guide
-
-To migrate from programmatic to declarative routing:
-
-1. **Replace RouterProvider with Router**:
-
-   ```tsx
-   // Before
-   <RouterProvider routes={routes} />
-
-   // After
-   <Router>
-     {/* Route components */}
-   </Router>
-   ```
-
-2. **Convert route objects to Route components**:
-
-   ```tsx
-   // Before
-   { path: "/about", component: <About /> }
-
-   // After
-   <Route path="/about" element={<About />} />
-   ```
-
-3. **Convert nested routes**:
-
-   ```tsx
-   // Before
-   {
-     path: "/dashboard",
-     component: <Dashboard />,
-     children: [
-       { path: "settings", component: <Settings /> }
-     ]
-   }
-
-   // After
-   <Route path="/dashboard" element={<Dashboard />}>
-     <Route path="settings" element={<Settings />} />
-   </Route>
-   ```
+- Routes are generated dynamically
+- You need to manipulate routes as data
+- Building configuration-driven UIs
+- Need type inference on route configs
 
 ## TypeScript Support
 
 The declarative routing components are fully typed:
 
 ```tsx
-import type { RouteProps } from "router-kit";
+import type {
+  RouteProps,
+  RouteMeta,
+  RouteGuard,
+  RouteLoader,
+} from "router-kit";
 
 // RouteProps interface is available for custom implementations
-const customRoute: RouteProps = {
-  path: "/custom",
-  element: <CustomComponent />,
+const customMeta: RouteMeta = {
+  title: "Custom Page",
+  description: "A custom page",
+};
+
+const customGuard: RouteGuard = ({ pathname, params }) => {
+  return isAuthenticated() || "/login";
+};
+
+const customLoader: RouteLoader = async ({ params, signal }) => {
+  const response = await fetch(`/api/data/${params.id}`, { signal });
+  return response.json();
 };
 ```
 
@@ -291,51 +392,63 @@ const customRoute: RouteProps = {
 
 1. **Organize routes logically**:
 
-   ```tsx
-   <Router>
-     {/* Public routes */}
-     <Route path="/" element={<Home />} />
-     <Route path="/about" element={<About />} />
+```tsx
+<Router>
+  {/* Public routes */}
+  <Route path="/" component={<Home />} />
+  <Route path="/about" component={<About />} />
 
-     {/* User routes */}
-     <Route path="/users/:id" element={<UserProfile />} />
+  {/* Protected routes */}
+  <Route path="/dashboard" component={<Dashboard />} guard={requireAuth}>
+    <Route path="settings" component={<Settings />} />
+  </Route>
 
-     {/* Admin routes */}
-     <Route path="/admin" element={<AdminLayout />}>
-       <Route path="users" element={<UserManagement />} />
-       <Route path="settings" element={<AdminSettings />} />
-     </Route>
+  {/* Catch-all */}
+  <Route path="*" component={<NotFound />} />
+</Router>
+```
 
-     {/* Error routes */}
-     <Route path="/404" element={<NotFound />} />
-   </Router>
-   ```
+2. **Use route metadata for SEO**:
 
-2. **Use meaningful component names**:
+```tsx
+<Route
+  path="/about"
+  component={<About />}
+  meta={{
+    title: "About Us - My App",
+    description: "Learn about our company",
+  }}
+/>
+```
 
-   ```tsx
-   // Good
-   <Route path="/products/:id" element={<ProductDetails />} />
+3. **Use guards for authentication**:
 
-   // Avoid
-   <Route path="/products/:id" element={<Component1 />} />
-   ```
+```tsx
+const requireAuth = () => isLoggedIn() || "/login";
+const requireAdmin = () => isAdmin() || "/unauthorized";
 
-3. **Group related routes**:
-   ```tsx
-   <Route path="/dashboard" element={<DashboardLayout />}>
-     <Route path="overview" element={<Overview />} />
-     <Route path="analytics" element={<Analytics />} />
-     <Route path="settings" element={<Settings />} />
-   </Route>
-   ```
+<Router>
+  <Route path="/profile" component={<Profile />} guard={requireAuth} />
+  <Route path="/admin" component={<Admin />} guard={requireAdmin} />
+</Router>;
+```
+
+4. **Use loaders for data fetching**:
+
+```tsx
+<Route
+  path="/user/:id"
+  component={<UserProfile />}
+  loader={async ({ params }) => fetchUser(params.id)}
+/>
+```
 
 ## Compatibility
 
-- ✅ **Fully compatible** with existing hooks (`useRouter`, `useParams`, etc.)
-- ✅ **Fully compatible** with existing components (`Link`, `NavLink`)
-- ✅ **Can be used alongside** the programmatic approach
-- ✅ **Same routing engine** under the hood
-- ✅ **Same TypeScript support** and error handling
+- ✅ Fully compatible with all hooks (`useRouter`, `useParams`, `useNavigate`, etc.)
+- ✅ Fully compatible with navigation components (`Link`, `NavLink`)
+- ✅ Can be used alongside the programmatic approach
+- ✅ Same routing engine under the hood
+- ✅ Full TypeScript support and error handling
 
 Both approaches use the same underlying routing system, so you can choose the one that best fits your development style and project requirements.

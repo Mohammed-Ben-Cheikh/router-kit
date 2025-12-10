@@ -1,6 +1,6 @@
 # Router-Kit Architecture & Implementation
 
-Technical documentation for Router-Kit v1.3.1
+Technical documentation for Router-Kit v2.0.0
 
 ---
 
@@ -11,9 +11,11 @@ Technical documentation for Router-Kit v1.3.1
 3. [Route Matching Algorithm](#route-matching-algorithm)
 4. [History Management](#history-management)
 5. [Context System](#context-system)
-6. [Error Handling System](#error-handling-system)
-7. [Type System](#type-system)
-8. [Performance Considerations](#performance-considerations)
+6. [Route Guards & Loaders](#route-guards--loaders)
+7. [Navigation Blocking](#navigation-blocking)
+8. [Error Handling System](#error-handling-system)
+9. [Type System](#type-system)
+10. [Performance Considerations](#performance-considerations)
 
 ---
 
@@ -21,41 +23,67 @@ Technical documentation for Router-Kit v1.3.1
 
 ### System Design
 
-Router-Kit follows a **provider-context pattern** where the `RouterProvider` acts as the central hub for routing state and navigation logic.
+Router-Kit v2.0 follows a **provider-context pattern** with enhanced features including route guards, data loaders, navigation blocking, and scroll restoration.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Application                       │
-│  ┌───────────────────────────────────────────────┐  │
-│  │            RouterProvider                     │  │
-│  │  ┌─────────────────────────────────────────┐ │  │
-│  │  │        RouterContext                    │ │  │
-│  │  │  • path: string                         │ │  │
-│  │  │  • fullPathWithParams: string           │ │  │
-│  │  │  • navigate: (to, options) => void      │ │  │
-│  │  └─────────────────────────────────────────┘ │  │
-│  │                                               │  │
-│  │  ┌─────────────────────────────────────────┐ │  │
-│  │  │      Route Matching Engine              │ │  │
-│  │  │  • Static route priority                │ │  │
-│  │  │  • Dynamic route matching               │ │  │
-│  │  │  • Nested route resolution              │ │  │
-│  │  └─────────────────────────────────────────┘ │  │
-│  │                                               │  │
-│  │  ┌─────────────────────────────────────────┐ │  │
-│  │  │      History Patching                   │ │  │
-│  │  │  • pushState interception               │ │  │
-│  │  │  • replaceState interception            │ │  │
-│  │  │  • popstate event handling              │ │  │
-│  │  └─────────────────────────────────────────┘ │  │
-│  └───────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    Application                           │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │            RouterProvider                         │  │
+│  │  ┌─────────────────────────────────────────────┐ │  │
+│  │  │        RouterContext                        │ │  │
+│  │  │  • path: string                             │ │  │
+│  │  │  • fullPathWithParams: string               │ │  │
+│  │  │  • params: Record<string, string>           │ │  │
+│  │  │  • query: Record<string, string>            │ │  │
+│  │  │  • location: Location                       │ │  │
+│  │  │  • navigate: NavigateFunction               │ │  │
+│  │  │  • matches: RouteMatch[]                    │ │  │
+│  │  │  • loaderData: any                          │ │  │
+│  │  │  • basename: string                         │ │  │
+│  │  └─────────────────────────────────────────────┘ │  │
+│  │                                                   │  │
+│  │  ┌─────────────────────────────────────────────┐ │  │
+│  │  │      Route Guards Pipeline                  │ │  │
+│  │  │  • Async guard execution                    │ │  │
+│  │  │  • Redirect handling                        │ │  │
+│  │  │  • Nested guard inheritance                 │ │  │
+│  │  └─────────────────────────────────────────────┘ │  │
+│  │                                                   │  │
+│  │  ┌─────────────────────────────────────────────┐ │  │
+│  │  │      Data Loaders                           │ │  │
+│  │  │  • Pre-render data fetching                 │ │  │
+│  │  │  • AbortSignal support                      │ │  │
+│  │  │  • Error boundaries                         │ │  │
+│  │  └─────────────────────────────────────────────┘ │  │
+│  │                                                   │  │
+│  │  ┌─────────────────────────────────────────────┐ │  │
+│  │  │      Route Matching Engine                  │ │  │
+│  │  │  • Static route priority                    │ │  │
+│  │  │  • Dynamic route matching                   │ │  │
+│  │  │  • Nested route resolution                  │ │  │
+│  │  │  • Catch-all routes                         │ │  │
+│  │  └─────────────────────────────────────────────┘ │  │
+│  │                                                   │  │
+│  │  ┌─────────────────────────────────────────────┐ │  │
+│  │  │      Navigation Management                  │ │  │
+│  │  │  • History API patching                     │ │  │
+│  │  │  • Navigation blocking                      │ │  │
+│  │  │  • Scroll restoration                       │ │  │
+│  │  │  • Basename handling                        │ │  │
+│  │  └─────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
 ```
 User Action (Click Link / navigate())
+         │
+         ▼
+   Navigation Blocker Check
+   (If blocked, show confirmation)
          │
          ▼
    History API Update
@@ -66,18 +94,30 @@ User Action (Click Link / navigate())
          │
          ▼
    RouterProvider Updates State
-   (setPath, setFullPathWithParams)
          │
          ▼
    Route Matching Algorithm
-   (getComponent function)
+         │
+         ▼
+   Route Guard Execution
+   (Async, may redirect)
+         │
+         ▼
+   Data Loader Execution
+   (Pre-fetch route data)
+         │
+         ▼
+   Scroll Position Update
+         │
+         ▼
+   Document Title Update (meta)
          │
          ▼
    Component Rendered
          │
          ▼
    Context Updated
-   (Children can access via hooks)
+   (Children access via hooks)
 ```
 
 ---
@@ -88,13 +128,18 @@ User Action (Click Link / navigate())
 
 **Location:** `src/core/createRouter.tsx`
 
-**Purpose:** Normalizes route configurations for consistent processing
+**Purpose:** Normalizes and validates route configurations
 
 **Implementation:**
 
 ```typescript
 function normalizeRoutes(inputRoutes: Route[]): Route[] {
   return inputRoutes.map((route) => {
+    // Validate route
+    if (!route.path && !route.index) {
+      console.warn("Route missing path property");
+    }
+
     // Handle array or single path
     const pathArray = Array.isArray(route.path) ? route.path : [route.path];
 

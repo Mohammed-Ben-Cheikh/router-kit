@@ -1,4 +1,4 @@
-import { type ReactNode, Children, isValidElement } from "react";
+import { type ReactNode, Children, isValidElement, Suspense } from "react";
 import RouterProvider from "../context/RouterProvider";
 import createRouter from "../core/createRouter";
 import type { Route as RouteType } from "../types";
@@ -25,7 +25,15 @@ function extractRoutesFromJSX(children: ReactNode): RouteType[] {
 
         const route: RouteType = {
           path: props.path,
-          component: props.element,
+          component: props.component,
+          // Pass through all route configuration options
+          index: props.index,
+          lazy: props.lazy,
+          loader: props.loader,
+          errorElement: props.errorElement,
+          redirectTo: props.redirectTo,
+          guard: props.guard,
+          meta: props.meta,
         };
 
         // Handle nested routes
@@ -45,26 +53,88 @@ function extractRoutesFromJSX(children: ReactNode): RouteType[] {
 }
 
 /**
+ * Router props
+ */
+interface RouterProps {
+  /** Route children as JSX */
+  children: ReactNode;
+  /** Base path for all routes */
+  basename?: string;
+  /** Fallback element shown during lazy loading */
+  fallback?: ReactNode;
+}
+
+/**
  * Router component for declarative routing
- * Provides an alternative JSX-based approach to defining routes
+ *
+ * Provides an alternative JSX-based approach to defining routes.
+ * Supports all route configuration options through props.
  *
  * @example
  * ```tsx
+ * // Basic usage
  * <Router>
- *   <Route path="/" element={<Home />} />
- *   <Route path="/about" element={<About />} />
- *   <Route path="/users/:id" element={<UserProfile />} />
- *   <Route path="/dashboard" element={<Dashboard />}>
- *     <Route path="settings" element={<Settings />} />
- *     <Route path="profile" element={<Profile />} />
+ *   <Route path="/" component={<Home />} />
+ *   <Route path="/about" component={<About />} />
+ *   <Route path="/users/:id" component={<UserProfile />} />
+ *   <Route path="/dashboard" component={<Dashboard />}>
+ *     <Route path="settings" component={<Settings />} />
+ *     <Route path="profile" component={<Profile />} />
  *   </Route>
- *   <Route path="/404" element={<NotFound />} />
+ *   <Route path="/404" component={<NotFound />} />
+ * </Router>
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // With basename
+ * <Router basename="/app">
+ *   <Route path="/" component={<Home />} />
+ * </Router>
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // With lazy loading
+ * const LazyAbout = lazy(() => import('./pages/About'));
+ *
+ * <Router fallback={<Loading />}>
+ *   <Route path="/about" component={<LazyAbout />} />
+ * </Router>
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // With guards and loaders
+ * <Router>
+ *   <Route
+ *     path="/admin"
+ *     component={<Admin />}
+ *     guard={() => isAdmin() || '/login'}
+ *     loader={async () => fetchAdminData()}
+ *   />
  * </Router>
  * ```
  */
-const Router = ({ children }: { children: ReactNode }) => {
+const Router = ({ children, basename, fallback }: RouterProps) => {
   const routes = extractRoutesFromJSX(children);
-  return <RouterProvider routes={createRouter(routes)} />;
+
+  const content = (
+    <RouterProvider
+      routes={createRouter(routes)}
+      basename={basename}
+      fallbackElement={fallback as any}
+    />
+  );
+
+  // Wrap in Suspense if fallback is provided
+  if (fallback) {
+    return <Suspense fallback={fallback}>{content}</Suspense>;
+  }
+
+  return content;
 };
+
+Router.displayName = "Router";
 
 export default Router;

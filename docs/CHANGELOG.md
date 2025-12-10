@@ -7,333 +7,179 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.3.1] - 2025-11-09
+## [2.0.0] - 2025-01-XX
 
 ### Added
 
-- Comprehensive documentation system
-  - Complete user documentation (DOCUMENTATION.md)
-  - Detailed API reference (API_REFERENCE.md)
-  - Real-world examples (EXAMPLES.md)
-  - Architecture documentation (ARCHITECTURE.md)
-  - Documentation index (docs/README.md)
-- Full TypeScript type exports
-- Enhanced error handling system
-  - `RouterKitError` class with detailed context
-  - `RouterErrorCode` enum for standardized error codes
-  - Pre-configured error creators (`RouterErrors`)
-  - Console styling for better debugging
-- New hooks:
-  - `useDynamicComponents()` - Conditional component rendering
-  - `useLocation()` - Access location with state support
-- Export of error utilities
-- Navigation state support via `NavigateOptions.state`
+#### New Components
+
+- **Outlet**: Professional nested layout component for child route rendering
+  - Matches React Router API for familiarity
+  - Context prop for passing data to child routes
+  - Perfect for dashboard layouts, tabbed interfaces, and nested UIs
+
+#### New Hooks
+
+- **useNavigate**: Programmatic navigation hook matching React Router API
+  - Supports string paths and numeric history navigation
+  - Options for `replace` and `state`
+- **useMatches**: Access matched route hierarchy for breadcrumbs
+- **useBlocker**: Block navigation with custom logic for unsaved changes
+- **useLoaderData**: Access data from route loaders
+- **useSearchParams**: Read and write URL search parameters
+- **useOutlet**: Get child route element directly (returns element or null)
+- **useOutletContext**: Access context from parent `<Outlet context={...} />`
+
+#### Route Guards
+
+- Async route guard support with `guard` prop
+- Guard context includes `params`, `query`, and `location`
+- Redirect support via `{ redirect: "/path" }` return value
+- Nested route guards inheritance
+
+#### Data Loaders
+
+- Route-level data loading with `loader` prop
+- Loader context includes `params`, `query`, and `signal`
+- AbortSignal support for cancellation
+- Error handling with `errorElement`
+
+#### Navigation Blocking
+
+- Block navigation when users have unsaved changes
+- Blocker states: `blocked`, `unblocked`, `proceeding`
+- `proceed()` and `reset()` methods for user confirmation
+
+#### Enhanced Components
+
+- **Link**: ForwardRef support, external link detection, security attributes
+- **NavLink**: Partial matching with `end` prop, `activeStyle`, render props pattern
+- **Route**: New props - `loader`, `guard`, `meta`, `redirectTo`, `errorElement`, `lazy`, `index`
+- **Router**: Enhanced with `basename`, `fallback`, `scrollRestoration`
+
+#### Route Metadata
+
+- Document title management via `meta.title`
+- Custom metadata support
+
+#### Scroll Restoration
+
+- `scrollRestoration` prop: `"auto"` | `"manual"`
+- Automatic scroll position management
+
+#### Basename Support
+
+- Deploy to subdirectories with `basename` prop
+- Automatic path prefixing
+
+#### Lazy Loading
+
+- Built-in lazy loading with `lazy` prop
+- Suspense fallback via `fallback` prop
 
 ### Changed
 
-- Improved error messages with detailed context
-- Enhanced type definitions for better IDE support
-- Updated exports in index.ts for better discoverability
-- Improved README with better documentation structure
+- **RouterProvider**: Extended with `basename`, `scrollRestoration`, `fallback` props
+- **RouterContext**: Now includes `params`, `query`, `location`, `matches`, `loaderData`, `basename`
+- **useParams**: Now supports TypeScript generics and memoized results
+- **useQuery**: Reactive updates using `useSyncExternalStore`
+- **useLocation**: Reactive updates using `useSyncExternalStore`
+- **useRouter**: Returns complete context including all new features
 
-### Fixed
+### Improved
 
-- Type safety improvements across all hooks
-- Error handling in RouterProvider
-- Navigation validation
-
-### Documentation
-
-- Added comprehensive documentation in `/docs` directory
-- Added inline code documentation
-- Updated README with documentation links
-- Added examples for all major features
+- TypeScript support with 25+ type definitions
+- Route validation and normalization
+- Error handling with detailed error codes
 
 ---
 
-## [1.3.0] - Previous Release
+## [1.3.1] - Previous Version
 
-### Added
+### Features
 
-- Multiple path aliases support
-- Nested routes support
-- Query parameter parsing hook (`useQuery`)
-- Route parameters hook (`useParams`)
-- TypeScript support with full type definitions
-
-### Changed
-
-- Improved route matching algorithm
-- Better performance with static route prioritization
-- Enhanced RouterProvider implementation
+- Basic routing with `RouterProvider` and `createRouter`
+- `Link` and `NavLink` components
+- `useRouter`, `useParams`, `useQuery`, `useLocation` hooks
+- `useDynamicComponents` for conditional rendering
+- Multiple path aliases
+- Nested routes
+- Custom 404 pages
+- Error handling system
 
 ---
 
-## [1.2.0] - Earlier Release
+## Migration from 1.x to 2.0
 
-### Added
+### Breaking Changes
 
-- `NavLink` component with active state
-- Custom 404 page support
-- History API patching for SPA navigation
+None - v2.0 is fully backward compatible.
 
-### Changed
+### New Features to Adopt
 
-- Improved Link component
-- Better context management
-
----
-
-## [1.1.0] - Initial Features
-
-### Added
-
-- Basic routing functionality
-- `createRouter` function
-- `RouterProvider` component
-- `Link` component
-- `useRouter` hook
-- Route matching with dynamic parameters
-
----
-
-## [1.0.0] - Initial Release
-
-### Added
-
-- Core routing functionality
-- Basic route configuration
-- Client-side navigation
-- React context-based routing
-
----
-
-## Future Releases
-
-### Planned Features
-
-#### [2.0.0] - Major Update (Planned)
-
-- **Hash-based routing** - Support for `#/path` URLs
-- **Regex route matching** - More flexible route patterns
-- **Route guards** - Built-in authentication/authorization
-- **Lazy loading** - Native code-splitting support
-- **Transition hooks** - Animation lifecycle callbacks
-- **Route metadata** - SEO and meta tag management
-- **Middleware system** - Route-level middleware support
-- **Route caching** - Performance optimization
-
-#### [1.4.0] - Next Minor Release (Planned)
-
-- Wildcard routes (`*` and `**`)
-- Route priority configuration
-- Enhanced error recovery
-- Performance improvements
-- Additional test coverage
-- CI/CD pipeline
-
----
-
-## Versioning Policy
-
-Router-Kit follows [Semantic Versioning](https://semver.org/):
-
-- **MAJOR** version (X.0.0) - Incompatible API changes
-- **MINOR** version (1.X.0) - New features, backward compatible
-- **PATCH** version (1.3.X) - Bug fixes, backward compatible
-
----
-
-## Migration Guides
-
-### Migrating to 1.3.1
-
-No breaking changes. New features are additive.
-
-**New Features:**
+1. **Replace manual auth checks with guards:**
 
 ```tsx
-// Use new error system
-import { RouterErrors, RouterErrorCode } from "router-kit";
+// Before (1.x)
+function ProtectedRoute({ children }) {
+  const { navigate } = useRouter();
+  useEffect(() => {
+    if (!isAuthenticated) navigate("/login");
+  }, []);
+  return isAuthenticated ? children : null;
+}
 
-// Use new hooks
-import { useLocation, useDynamicComponents } from "router-kit";
-
-// Navigation with state
-navigate("/dashboard", { state: { from: "/login" } });
-
-// Dynamic components
-const component = useDynamicComponents(viewsObject, "view");
+// After (2.0)
+const routes = createRouter([
+  {
+    path: "dashboard",
+    component: <Dashboard />,
+    guard: async () => isAuthenticated || { redirect: "/login" },
+  },
+]);
 ```
 
-### Migrating to 1.3.0
-
-No breaking changes. Enhanced TypeScript support.
-
-**Improvements:**
+2. **Use useNavigate instead of useRouter().navigate:**
 
 ```tsx
-// Better type inference
-const params = useParams(); // Fully typed
-const query = useQuery(); // Fully typed
+// Before (1.x)
+const { navigate } = useRouter();
+
+// After (2.0) - Both work, but useNavigate is preferred
+const navigate = useNavigate();
 ```
 
----
-
-## Upgrade Instructions
-
-### From 1.2.x to 1.3.1
-
-```bash
-npm install router-kit@latest
-```
-
-No code changes required. All changes are backward compatible.
-
-### From 1.1.x to 1.3.1
-
-```bash
-npm install router-kit@latest
-```
-
-Update your imports if using TypeScript:
+3. **Add loaders for data fetching:**
 
 ```tsx
-// Add type imports if needed
-import type { Route, RouterContextType } from "router-kit";
+// After (2.0)
+const routes = createRouter([
+  {
+    path: "users/:id",
+    component: <UserProfile />,
+    loader: ({ params }) => fetch(`/api/users/${params.id}`),
+  },
+]);
+
+function UserProfile() {
+  const user = useLoaderData();
+  return <h1>{user.name}</h1>;
+}
 ```
 
-### From 1.0.x to 1.3.1
-
-```bash
-npm install router-kit@latest
-```
-
-Update `NavLink` usage if applicable:
+4. **Use blockers for form protection:**
 
 ```tsx
-// Old (1.0.x)
-<Link to="/about" className={path === "/about" ? "active" : ""}>
+function EditForm() {
+  const [isDirty, setIsDirty] = useState(false);
+  const blocker = useBlocker(isDirty);
 
-// New (1.3.1)
-<NavLink to="/about" activeClassName="active">
+  return (
+    <form>
+      {blocker.state === "blocked" && (
+        <ConfirmDialog onConfirm={blocker.proceed} onCancel={blocker.reset} />
+      )}
+    </form>
+  );
+}
 ```
-
----
-
-## Breaking Changes
-
-### None in 1.3.1
-
-All changes are backward compatible.
-
-### Potential Future Breaking Changes
-
-These are planned for major version 2.0.0:
-
-- Route configuration format changes (more powerful matching)
-- Context API restructuring (performance improvements)
-- Hook signature changes (additional features)
-
----
-
-## Deprecation Notices
-
-### None Currently
-
-No features are deprecated in version 1.3.1.
-
----
-
-## Security Updates
-
-### 1.3.1
-
-- Improved URL validation in navigate function
-- Enhanced error handling for invalid routes
-- Better input sanitization
-
-### Previous Versions
-
-- Regular dependency updates
-- Security patches applied via npm audit
-
----
-
-## Performance Improvements
-
-### 1.3.1
-
-- Optimized route matching algorithm
-- Reduced re-render frequency
-- Improved memory usage
-
-### 1.3.0
-
-- Static route prioritization
-- Efficient path validation
-- Minimal context updates
-
----
-
-## Bug Fixes
-
-### 1.3.1
-
-- Fixed type definitions export
-- Corrected error message formatting
-- Improved edge case handling in route matching
-
-### 1.3.0
-
-- Fixed nested route resolution
-- Corrected multiple path alias handling
-- Fixed history state management
-
----
-
-## Contributors
-
-### Core Maintainer
-
-- **Mohammed Ben Cheikh** - [GitHub](https://github.com/Mohammed-Ben-Cheikh)
-
-### Contributors
-
-We welcome contributions! See our [Contributing Guide](../README.md#contributing) for details.
-
----
-
-## Acknowledgments
-
-Thanks to all users who have:
-
-- Reported issues
-- Suggested features
-- Contributed code
-- Improved documentation
-
----
-
-## Links
-
-- **GitHub Repository:** https://github.com/Mohammed-Ben-Cheikh/router-kit
-- **npm Package:** https://www.npmjs.com/package/router-kit
-- **Documentation:** [/docs/README.md](./README.md)
-- **Issues:** https://github.com/Mohammed-Ben-Cheikh/router-kit/issues
-- **Changelog:** You're reading it!
-
----
-
-## Support
-
-For questions and support:
-
-- **GitHub Issues:** Report bugs or request features
-- **GitHub Discussions:** Ask questions and share ideas
-- **Email:** mohammed.bencheikh.dev@gmail.com
-
----
-
-**Last Updated:** November 9, 2025  
-**Maintained by:** Mohammed Ben Cheikh

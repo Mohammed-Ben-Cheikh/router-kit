@@ -1,513 +1,209 @@
-# Documentation Index
+# Router-Kit
 
-Complete documentation for Router-Kit v1.3.1
+A professional React routing library with guards, loaders, and navigation blocking.
 
-🌐 **Website:** [https://routerkit.com/](https://routerkit.com/)
-
----
-
-## 📚 Documentation Structure
-
-This directory contains comprehensive documentation for Router-Kit. Choose the documentation that best fits your needs:
-
-### For Users
-
-- **[Quick Start Guide](#quick-start-guide)** - Get up and running in 5 minutes
-- **[Complete Documentation](./DOCUMENTATION.md)** - Full feature guide with examples
-- **[API Reference](./API_REFERENCE.md)** - Detailed API documentation
-- **[Examples](./EXAMPLES.md)** - Real-world usage examples
-
-### For Developers
-
-- **[Architecture](./ARCHITECTURE.md)** - Internal implementation details
-- **[Contributing Guide](#contributing)** - How to contribute to Router-Kit
+**Version:** 2.0.0 | **License:** MIT
 
 ---
 
-## Quick Start Guide
+## ✨ Features
 
-### Installation
+- 🛡️ **Route Guards** - Authentication & authorization
+- 📦 **Data Loaders** - Pre-fetch route data
+- 🚫 **Navigation Blocking** - Protect unsaved changes
+- 📜 **Scroll Restoration** - Auto scroll management
+- ⚡ **Lazy Loading** - Code splitting support
+- 🎯 **TypeScript** - Full type safety
+- 🎭 **Outlet** - Professional nested layouts
+- 🪝 **10 Hooks** - Complete routing control
+
+---
+
+## 📦 Installation
 
 ```bash
 npm install router-kit
 ```
 
-### Basic Setup
+---
 
-**Programmatic Approach (Traditional):**
+## 🚀 Quick Start
+
+### Programmatic Approach
 
 ```tsx
-import React from "react";
-import { createRouter, RouterProvider, Link } from "router-kit";
+import {
+  createRouter,
+  RouterProvider,
+  Link,
+  useNavigate,
+  useParams,
+} from "router-kit";
 
-// 1. Define your components
-const Home = () => <h1>Home Page</h1>;
-const About = () => <h1>About Page</h1>;
+const Home = () => <h1>Home</h1>;
+const User = () => {
+  const { id } = useParams();
+  return <h1>User {id}</h1>;
+};
 
-// 2. Create routes
 const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: "about", component: <About /> },
+  { path: "/", component: <Home />, meta: { title: "Home" } },
+  { path: "users/:id", component: <User /> },
+  { path: "/404", component: <h1>Not Found</h1> },
 ]);
 
-// 3. Wrap your app with RouterProvider
 function App() {
   return <RouterProvider routes={routes} />;
 }
-
-export default App;
 ```
 
-**Declarative Approach (New in v1.3.1):**
+### Declarative Approach
 
 ```tsx
-import React from "react";
 import { Router, Route, Link } from "router-kit";
 
-// 1. Define your components
-const Home = () => <h1>Home Page</h1>;
-const About = () => <h1>About Page</h1>;
-
-// 2. Use declarative JSX routing
 function App() {
   return (
     <Router>
-      <Route path="/" element={<Home />} />
-      <Route path="/about" element={<About />} />
+      <Route path="/" component={<Home />} />
+      <Route path="/users/:id" component={<User />} />
+      <Route path="/404" component={<NotFound />} />
     </Router>
   );
 }
-
-export default App;
-```
-
-> 🆕 **New in v1.3.1**: Declarative routing with `<Router>` and `<Route>` components! Choose the approach that fits your style.
-
-### Navigation
-
-```tsx
-import { Link, NavLink } from "router-kit";
-
-function Navigation() {
-  return (
-    <nav>
-      <Link to="/">Home</Link>
-      <NavLink to="/about" activeClassName="active">
-        About
-      </NavLink>
-    </nav>
-  );
-}
-```
-
-### Dynamic Routes
-
-```tsx
-import { useParams } from "router-kit";
-
-// Route: /users/:id
-const routes = createRouter([
-  { path: "users/:id", component: <UserProfile /> },
-]);
-
-function UserProfile() {
-  const { id } = useParams();
-  return <h1>User {id}</h1>;
-}
-```
-
-### Programmatic Navigation
-
-```tsx
-import { useRouter } from "router-kit";
-
-function LoginForm() {
-  const { navigate } = useRouter();
-
-  const handleLogin = () => {
-    // After successful login
-    navigate("/dashboard");
-  };
-
-  return <button onClick={handleLogin}>Login</button>;
-}
 ```
 
 ---
 
-## Documentation Files
-
-### [DOCUMENTATION.md](./DOCUMENTATION.md)
-
-**Complete user guide covering:**
-
-- Introduction and key features
-- Installation instructions
-- Core concepts explained
-- API reference with examples
-- Advanced usage patterns
-- Error handling strategies
-- TypeScript support
-- Best practices
-- Migration guide from other routers
-- Real-world examples
-
-**Best for:** Learning Router-Kit from scratch, understanding concepts, and finding usage examples.
-
-### [API_REFERENCE.md](./API_REFERENCE.md)
-
-**Comprehensive API documentation including:**
-
-- `createRouter()` function
-- `RouterProvider` component
-- `Link` and `NavLink` components
-- `useRouter()` hook
-- `useParams()` hook
-- `useQuery()` hook
-- `useLocation()` hook
-- `useDynamicComponents()` hook
-- Type definitions
-- Error system reference
-
-**Best for:** Looking up specific APIs, understanding function signatures, and exploring available options.
-
-### [EXAMPLES.md](./EXAMPLES.md)
-
-**Practical examples featuring:**
-
-- Basic routing examples
-- E-commerce application
-- Blog platform
-- Dashboard application
-- Multi-language website
-- Authentication flow
-- Advanced patterns (lazy loading, modals, breadcrumbs, animations)
-
-**Best for:** Finding real-world implementation patterns and copy-paste solutions.
-
-### [ARCHITECTURE.md](./ARCHITECTURE.md)
-
-**Technical implementation details including:**
-
-- System architecture overview
-- Core component implementations
-- Route matching algorithm
-- History management
-- Context system
-- Error handling system
-- Type system
-- Performance considerations
-- Build and distribution
-
-**Best for:** Understanding internals, contributing to the project, or debugging complex issues.
-
----
-
-## Common Use Cases
-
-### Simple Website
+## 🛡️ Route Guards
 
 ```tsx
+const authGuard = async () => {
+  const isAuth = await checkAuth();
+  return isAuth || { redirect: "/login" };
+};
+
 const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: "about", component: <About /> },
-  { path: "contact", component: <Contact /> },
-  { path: "/404", component: <NotFound /> },
-]);
-```
-
-📖 **See:** [Basic Examples in EXAMPLES.md](./EXAMPLES.md#basic-examples)
-
-### Blog or CMS
-
-```tsx
-const routes = createRouter([
-  { path: "/", component: <BlogHome /> },
-  { path: "posts/:category/:slug", component: <BlogPost /> },
-  { path: "author/:username", component: <AuthorProfile /> },
-]);
-```
-
-📖 **See:** [Blog Platform in EXAMPLES.md](./EXAMPLES.md#blog-platform)
-
-### Dashboard Application
-
-```tsx
-const routes = createRouter([
-  { path: "dashboard/:view", component: <Dashboard /> },
-]);
-
-function Dashboard() {
-  const views = {
-    overview: <OverviewView />,
-    analytics: <AnalyticsView />,
-    settings: <SettingsView />,
-  };
-
-  return useDynamicComponents(views, "view");
-}
-```
-
-📖 **See:** [Dashboard Application in EXAMPLES.md](./EXAMPLES.md#dashboard-application)
-
-### E-commerce Site
-
-```tsx
-const routes = createRouter([
-  { path: "/", component: <HomePage /> },
-  { path: "products", component: <ProductList /> },
-  { path: "products/:id", component: <ProductDetail /> },
-  { path: "cart", component: <Cart /> },
-  { path: "checkout", component: <Checkout /> },
-]);
-```
-
-📖 **See:** [E-commerce Application in EXAMPLES.md](./EXAMPLES.md#e-commerce-application)
-
-### Protected Routes
-
-```tsx
-const routes = createRouter([
-  { path: "/", component: <PublicHome /> },
   {
     path: "dashboard",
-    component: (
-      <ProtectedRoute>
-        <Dashboard />
-      </ProtectedRoute>
-    ),
+    component: <Dashboard />,
+    guard: authGuard,
   },
 ]);
 ```
 
-📖 **See:** [Authentication Flow in EXAMPLES.md](./EXAMPLES.md#authentication-flow)
-
 ---
 
-## Feature Matrix
-
-| Feature                 | Status     | Documentation                                    |
-| ----------------------- | ---------- | ------------------------------------------------ |
-| Static Routes           | ✅         | [Docs](./DOCUMENTATION.md#routes)                |
-| Dynamic Routes          | ✅         | [Docs](./DOCUMENTATION.md#useparams)             |
-| Nested Routes           | ✅         | [Docs](./DOCUMENTATION.md#nested-routes)         |
-| Multiple Path Aliases   | ✅         | [Docs](./DOCUMENTATION.md#multiple-path-aliases) |
-| Query Parameters        | ✅         | [Docs](./DOCUMENTATION.md#usequery)              |
-| Navigation State        | ✅         | [Docs](./DOCUMENTATION.md#navigation-state)      |
-| Custom 404 Pages        | ✅         | [Docs](./DOCUMENTATION.md#custom-404-pages)      |
-| TypeScript Support      | ✅         | [Docs](./DOCUMENTATION.md#typescript-support)    |
-| Error Handling          | ✅         | [Docs](./DOCUMENTATION.md#error-handling)        |
-| Dynamic Components      | ✅         | [Docs](./API_REFERENCE.md#usedynamiccomponents)  |
-| **Declarative Routing** | ✅ **NEW** | [Docs](./DECLARATIVE_ROUTING.md)                 |
-| Hash Routing            | ⏳         | Planned                                          |
-| Regex Routes            | ⏳         | Planned                                          |
-
----
-
-## Quick Reference
-
-### Imports
+## 📦 Data Loaders
 
 ```tsx
-// Core
-import { createRouter, RouterProvider, Router, Route } from "router-kit";
+const routes = createRouter([
+  {
+    path: "users/:id",
+    component: <UserProfile />,
+    loader: async ({ params }) => {
+      return fetch(`/api/users/${params.id}`).then((r) => r.json());
+    },
+  },
+]);
 
-// Components
-import { Link, NavLink } from "router-kit";
-
-// Hooks
-import {
-  useRouter,
-  useParams,
-  useQuery,
-  useLocation,
-  useDynamicComponents,
-} from "router-kit";
-
-// Types
-import type {
-  Route,
-  RouterContextType,
-  NavigateOptions,
-  Location,
-  RouterKitError,
-} from "router-kit";
-
-// Error System
-import { RouterErrorCode, RouterErrors, createRouterError } from "router-kit";
+function UserProfile() {
+  const user = useLoaderData();
+  return <h1>{user.name}</h1>;
+}
 ```
 
-### Route Patterns
+---
 
-**Programmatic Approach:**
+## 🪝 Hooks
 
 ```tsx
-// Static route
-{ path: "about", component: <About /> }
+const navigate = useNavigate(); // Navigation
+const { id } = useParams(); // Route params
+const { page } = useQuery(); // Query params
+const location = useLocation(); // Location object
+const matches = useMatches(); // Route matches
+const data = useLoaderData(); // Loader data
+const blocker = useBlocker(isDirty); // Block navigation
+const outlet = useOutlet(); // Child route element
+const ctx = useOutletContext(); // Outlet context
+```
 
-// Dynamic parameter
-{ path: "users/:id", component: <UserProfile /> }
+---
 
-// Multiple parameters
-{ path: "posts/:category/:slug", component: <BlogPost /> }
+## 🎭 Outlet (Nested Layouts)
 
-// Multiple paths
-{ path: ["about", "about-us"], component: <About /> }
+```tsx
+import { Outlet, useOutletContext } from "router-kit";
 
-// Nested routes
-{
-  path: "dashboard",
-  component: <Dashboard />,
-  children: [
-    { path: "settings", component: <Settings /> }
-  ]
+// Parent layout with Outlet
+function DashboardLayout() {
+  const [user] = useState({ name: "John" });
+
+  return (
+    <div className="dashboard">
+      <Sidebar />
+      <main>
+        <Outlet context={{ user, theme: "dark" }} />
+      </main>
+    </div>
+  );
 }
 
-// 404 page
-{ path: "/404", component: <NotFound /> }
+// Child route accesses context
+function Settings() {
+  const { user, theme } = useOutletContext<{ user: User; theme: string }>();
+  return <div className={theme}>Settings for {user.name}</div>;
+}
 ```
 
-**Declarative Approach:**
+### Programmatic Config
 
 ```tsx
-// Static route
-<Route path="/about" element={<About />} />
-
-// Dynamic parameter
-<Route path="/users/:id" element={<UserProfile />} />
-
-// Multiple parameters
-<Route path="/posts/:category/:slug" element={<BlogPost />} />
-
-// Multiple paths
-<Route path={["/about", "/about-us"]} element={<About />} />
-
-// Nested routes
-<Route path="/dashboard" element={<Dashboard />}>
-  <Route path="settings" element={<Settings />} />
-</Route>
-
-// 404 page
-<Route path="/404" element={<NotFound />} />
+const routes = createRouter([
+  {
+    path: "dashboard",
+    component: <DashboardLayout />,
+    children: [
+      { index: true, component: <Overview /> },
+      { path: "settings", component: <Settings /> },
+      { path: "profile", component: <Profile /> },
+    ],
+  },
+]);
 ```
 
-### Hook Usage
+### Declarative Config
 
 ```tsx
-// Get router context
-const { path, navigate } = useRouter();
-
-// Get route parameters
-const { id, slug } = useParams();
-
-// Get query parameters
-const { search, page } = useQuery();
-
-// Get location details
-const { pathname, search, hash, state } = useLocation();
-
-// Dynamic components
-const component = useDynamicComponents(viewsObject, "paramName");
+<Router>
+  <Route path="dashboard" component={<DashboardLayout />}>
+    <Route index component={<Overview />} />
+    <Route path="settings" component={<Settings />} />
+    <Route path="profile" component={<Profile />} />
+  </Route>
+</Router>
 ```
 
 ---
 
-## Version Information
+## 📚 Documentation
 
-- **Current Version:** 1.3.1
-- **React Version:** >=16 <20
-- **TypeScript:** >=5.2.0
-- **License:** MIT
-
----
-
-## Support & Community
-
-- **Website:** [routerkit.com](https://routerkit.com/)
-- **GitHub Repository:** [github.com/Mohammed-Ben-Cheikh/router-kit](https://github.com/Mohammed-Ben-Cheikh/router-kit)
-- **Issues:** [Report bugs or request features](https://github.com/Mohammed-Ben-Cheikh/router-kit/issues)
-- **Author:** Mohammed Ben Cheikh
-- **Email:** mohammed.bencheikh.dev@gmail.com
-- **Website:** [mohammedbencheikh.com](https://mohammedbencheikh.com/)
+| Document                                 | Description       |
+| ---------------------------------------- | ----------------- |
+| [Documentation](./docs/DOCUMENTATION.md) | Complete guide    |
+| [API Reference](./docs/API_REFERENCE.md) | Full API docs     |
+| [Examples](./docs/EXAMPLES.md)           | Code examples     |
+| [Architecture](./docs/ARCHITECTURE.md)   | Technical details |
+| [Changelog](./docs/CHANGELOG.md)         | Version history   |
 
 ---
 
-## Contributing
+## 🔗 Links
 
-We welcome contributions! Here's how to get started:
-
-1. **Fork the repository**
-2. **Create a feature branch:** `git checkout -b feature/amazing-feature`
-3. **Make your changes**
-4. **Run tests and type checks:** `npm run typecheck`
-5. **Commit your changes:** `git commit -m 'Add amazing feature'`
-6. **Push to your fork:** `git push origin feature/amazing-feature`
-7. **Open a Pull Request**
-
-**See:** [ARCHITECTURE.md](./ARCHITECTURE.md) for implementation details.
+- **GitHub:** [github.com/Mohammed-Ben-Cheikh/router-kit](https://github.com/Mohammed-Ben-Cheikh/router-kit)
+- **Author:** [Mohammed Ben Cheikh](https://mohammedbencheikh.com/)
 
 ---
 
-## Changelog
-
-### v1.3.1 (Current)
-
-- Full TypeScript support with comprehensive types
-- Enhanced error handling system with detailed context
-- New `useDynamicComponents` hook
-- New `useLocation` hook with state support
-- Improved type exports
-- Better error messages
-
-### Previous Versions
-
-See [GitHub Releases](https://github.com/Mohammed-Ben-Cheikh/router-kit/releases) for full changelog.
-
----
-
-## FAQ
-
-### How does Router-Kit compare to React Router?
-
-Router-Kit is simpler and lighter. It's perfect for small to medium projects that don't need the full complexity of React Router.
-
-📖 **See:** [Migration Guide in DOCUMENTATION.md](./DOCUMENTATION.md#migration-guide)
-
-### Can I use Router-Kit with TypeScript?
-
-Yes! Router-Kit is written in TypeScript and provides full type definitions.
-
-📖 **See:** [TypeScript Support in DOCUMENTATION.md](./DOCUMENTATION.md#typescript-support)
-
-### How do I handle authentication?
-
-Use the ProtectedRoute pattern with useRouter and useLocation hooks.
-
-📖 **See:** [Authentication Flow in EXAMPLES.md](./EXAMPLES.md#authentication-flow)
-
-### How do I create nested routes?
-
-Use the `children` property in route configuration.
-
-📖 **See:** [Nested Routes in DOCUMENTATION.md](./DOCUMENTATION.md#nested-routes)
-
-### What about 404 pages?
-
-Add a route with `path: "/404"` and Router-Kit will use it automatically.
-
-📖 **See:** [Custom 404 Pages in DOCUMENTATION.md](./DOCUMENTATION.md#custom-404-pages)
-
----
-
-## Learn More
-
-Ready to dive deeper? Start with the [Complete Documentation](./DOCUMENTATION.md) or explore specific topics:
-
-- New to Router-Kit? → [DOCUMENTATION.md](./DOCUMENTATION.md)
-- Need API details? → [API_REFERENCE.md](./API_REFERENCE.md)
-- Want examples? → [EXAMPLES.md](./EXAMPLES.md)
-- Curious about internals? → [ARCHITECTURE.md](./ARCHITECTURE.md)
-
----
-
-**Happy Routing! 🚀**
+Made with ❤️ by Mohammed Ben Cheikh

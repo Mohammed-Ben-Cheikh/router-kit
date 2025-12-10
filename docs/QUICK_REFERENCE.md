@@ -1,6 +1,6 @@
 # Router-Kit Quick Reference
 
-One-page reference for Router-Kit v1.3.1
+One-page reference for Router-Kit v2.0.0
 
 ---
 
@@ -33,30 +33,63 @@ function App() {
 
 ```tsx
 // Core
-import { createRouter, RouterProvider } from "router-kit";
+import { createRouter, RouterProvider, RouterContext } from "router-kit";
 
 // Components
-import { Link, NavLink } from "router-kit";
+import { Link, NavLink, Router, Route } from "router-kit";
 
-// Hooks
+// Hooks - Core Navigation
 import {
   useRouter,
-  useParams,
-  useQuery,
+  useNavigate,
   useLocation,
+  useResolvedPath,
+} from "router-kit";
+
+// Hooks - Route Data
+import {
+  useParams,
+  useParam,
+  useQuery,
+  useSearchParams,
+  useMatches,
+  useMatch,
+  useMatchPath,
+} from "router-kit";
+
+// Hooks - Advanced
+import {
   useDynamicComponents,
+  useBlocker,
+  usePrompt,
+  useLoaderData,
+  useRouteMeta,
+  useIsNavigating,
 } from "router-kit";
 
 // Types
 import type {
-  Route,
+  Route as RouteType,
+  RouteProps,
   RouterContextType,
+  RouterProviderProps,
   NavigateOptions,
+  NavigateFunction,
   Location,
+  RouteMatch,
+  RouteMeta,
+  RouteLoader,
+  RouteGuard,
+  LoaderArgs,
+  GuardArgs,
+  Blocker,
+  BlockerFunction,
+  LinkProps,
+  NavLinkProps,
 } from "router-kit";
 
 // Errors
-import { RouterErrors, RouterErrorCode } from "router-kit";
+import { RouterErrors, RouterErrorCode, createRouterError } from "router-kit";
 ```
 
 ---
@@ -76,6 +109,9 @@ import { RouterErrors, RouterErrorCode } from "router-kit";
 // Multiple paths (aliases)
 { path: ["about", "about-us"], component: <About /> }
 
+// Catch-all route
+{ path: "*", component: <NotFound /> }
+
 // Nested routes
 {
   path: "dashboard",
@@ -84,6 +120,30 @@ import { RouterErrors, RouterErrorCode } from "router-kit";
     { path: "settings", component: <Settings /> }
   ]
 }
+
+// With route guard
+{
+  path: "admin",
+  component: <Admin />,
+  guard: ({ pathname }) => isAuthenticated() || '/login'
+}
+
+// With loader
+{
+  path: "user/:id",
+  component: <UserProfile />,
+  loader: async ({ params }) => fetchUser(params.id)
+}
+
+// With metadata
+{
+  path: "about",
+  component: <About />,
+  meta: { title: "About Us", description: "Learn about us" }
+}
+
+// With redirect
+{ path: "old-path", redirectTo: "/new-path" }
 
 // 404 page
 { path: "/404", component: <NotFound /> }
@@ -98,20 +158,30 @@ import { RouterErrors, RouterErrorCode } from "router-kit";
 ```tsx
 <Link to="/about">About</Link>
 <Link to="/users/123" className="btn">View User</Link>
+<Link to="/profile" replace state={{ from: 'home' }}>Profile</Link>
+<Link to="https://example.com" target="_blank">External</Link>
 ```
 
 ### NavLink Component
 
 ```tsx
-<NavLink to="/" activeClassName="active">
-  Home
+<NavLink to="/" activeClassName="active" end>Home</NavLink>
+<NavLink to="/users" activeClassName="active">Users</NavLink>
+<NavLink
+  to="/dashboard"
+  activeStyle={{ fontWeight: 'bold' }}
+  isActive={(match, location) => location.pathname.startsWith('/dashboard')}
+>
+  Dashboard
 </NavLink>
 ```
 
 ### Programmatic Navigation
 
 ```tsx
-const { navigate } = useRouter();
+const navigate = useNavigate();
+// or
+const { navigate, back, forward } = useRouter();
 
 // Basic navigation
 navigate("/dashboard");
@@ -120,9 +190,16 @@ navigate("/dashboard");
 navigate("/login", { replace: true });
 
 // With state
-navigate("/profile", {
-  state: { from: "/settings" },
-});
+navigate("/profile", { state: { from: "/settings" } });
+
+// Prevent scroll reset
+navigate("/next-section", { preventScrollReset: true });
+
+// Go back/forward
+navigate(-1); // Go back
+navigate(1); // Go forward
+back(); // Go back
+forward(); // Go forward
 ```
 
 ---
@@ -132,11 +209,29 @@ navigate("/profile", {
 ### useRouter()
 
 ```tsx
-const { path, fullPathWithParams, navigate } = useRouter();
+const {
+  pathname, // Current path
+  pattern, // Matched pattern (e.g., /users/:id)
+  search, // Query string
+  hash, // URL hash
+  state, // History state
+  params, // Route params
+  matches, // Route match chain
+  navigate, // Navigate function
+  back, // Go back
+  forward, // Go forward
+  isNavigating, // Navigation in progress
+  loaderData, // Data from loader
+  meta, // Route metadata
+} = useRouter();
+```
 
-console.log(path); // "/users/123"
-console.log(fullPathWithParams); // "/users/:id"
+### useNavigate()
+
+```tsx
+const navigate = useNavigate();
 navigate("/home");
+navigate(-1); // Go back
 ```
 
 ### useParams()
@@ -145,18 +240,30 @@ navigate("/home");
 // Route: /users/:id
 // URL: /users/123
 
-const { id } = useParams();
-console.log(id); // "123"
+const params = useParams();
+console.log(params.id); // "123"
+
+// Or with single param
+const id = useParam("id");
 ```
 
-### useQuery()
+### useQuery() & useSearchParams()
 
 ```tsx
 // URL: /search?q=react&page=2
 
+// Simple object access
 const query = useQuery();
 console.log(query.q); // "react"
 console.log(query.page); // "2"
+
+// Full URLSearchParams API
+const [searchParams, setSearchParams] = useSearchParams();
+console.log(searchParams.get("q")); // "react"
+
+// Update search params
+setSearchParams({ q: "vue", page: "1" });
+setSearchParams((prev) => ({ ...Object.fromEntries(prev), page: "3" }));
 ```
 
 ### useLocation()
@@ -168,6 +275,61 @@ console.log(location.pathname); // "/products"
 console.log(location.search); // "?category=tech"
 console.log(location.hash); // "#reviews"
 console.log(location.state); // { from: "/home" }
+console.log(location.key); // "abc123"
+```
+
+### useMatches()
+
+```tsx
+const matches = useMatches();
+// Array of matched routes from root to current
+
+const currentMatch = useMatch();
+// Current (leaf) route match
+
+const isActive = useMatchPath("/users", { end: false });
+// Check if path matches
+```
+
+### useLoaderData()
+
+```tsx
+// Route with loader
+{ path: "user/:id", component: <User />, loader: ({ params }) => fetchUser(params.id) }
+
+// In component
+const user = useLoaderData();
+```
+
+### useRouteMeta()
+
+```tsx
+// Route with meta
+{ path: "about", component: <About />, meta: { title: "About" } }
+
+// In component
+const meta = useRouteMeta();
+console.log(meta?.title); // "About"
+```
+
+### useBlocker()
+
+```tsx
+const blocker = useBlocker(
+  ({ currentLocation, nextLocation }) => hasUnsavedChanges
+);
+
+if (blocker.state === "blocked") {
+  // Show confirmation dialog
+  blocker.proceed(); // Allow navigation
+  blocker.reset(); // Cancel navigation
+}
+```
+
+### usePrompt()
+
+```tsx
+usePrompt("You have unsaved changes!", hasUnsavedChanges);
 ```
 
 ### useDynamicComponents()
@@ -181,6 +343,35 @@ const views = {
 };
 
 const component = useDynamicComponents(views, "view");
+// With fallback
+const component = useDynamicComponents(views, "view", {
+  fallback: <DefaultView />,
+  throwOnNotFound: false,
+});
+```
+
+---
+
+## Declarative Routing
+
+```tsx
+import { Router, Route } from "router-kit";
+
+<Router basename="/app" fallback={<Loading />}>
+  <Route path="/" component={<Home />} />
+  <Route path="/about" component={<About />} />
+  <Route
+    path="/admin"
+    component={<Admin />}
+    guard={() => isAdmin() || "/login"}
+    loader={async () => fetchAdminData()}
+    meta={{ title: "Admin Panel" }}
+  />
+  <Route path="/dashboard" component={<Dashboard />}>
+    <Route path="settings" component={<Settings />} />
+  </Route>
+  <Route path="*" component={<NotFound />} />
+</Router>;
 ```
 
 ---
@@ -191,7 +382,7 @@ const component = useDynamicComponents(views, "view");
 
 ```tsx
 function ProtectedRoute({ children }) {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {

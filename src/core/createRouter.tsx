@@ -2,17 +2,20 @@ import type { Route } from "../types";
 
 /**
  * Normalizes a path by removing leading slashes and handling arrays
+ * Preserves "/" as empty string for root path matching
  */
 const normalizePath = (path: string | string[]): string => {
   const pathArray = Array.isArray(path) ? path : [path];
-  return pathArray
-    .map((p) => {
-      if (!p) return "";
-      // Remove leading slashes but preserve the path structure
-      return p.startsWith("/") ? p.replace(/^\/+/, "") : p;
-    })
-    .filter(Boolean)
-    .join("|");
+  const normalized = pathArray.map((p) => {
+    if (!p) return "";
+    // Root path "/" becomes empty string
+    if (p === "/") return "";
+    // Remove leading slashes but preserve the path structure
+    return p.startsWith("/") ? p.replace(/^\/+/, "") : p;
+  });
+
+  // Join with | but don't filter out empty strings (they represent root "/")
+  return normalized.join("|");
 };
 
 /**

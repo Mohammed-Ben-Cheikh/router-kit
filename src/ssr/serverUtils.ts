@@ -82,6 +82,30 @@ const joinPaths = (parent: string, child: string): string => {
 };
 
 /**
+ * Normalize path to string (handles array paths)
+ */
+const normalizePath = (path: string | string[]): string => {
+  if (Array.isArray(path)) {
+    return path.map((p) => (p.startsWith("/") ? p.slice(1) : p)).join("|");
+  }
+  return path;
+};
+
+/**
+ * Get the first path from a path (string or array)
+ */
+const getFirstPath = (path: string | string[]): string => {
+  if (Array.isArray(path)) {
+    return path[0] || "";
+  }
+  // Handle pipe-separated paths (already normalized)
+  if (path.includes("|")) {
+    return path.split("|")[0];
+  }
+  return path;
+};
+
+/**
  * Match routes for a given URL on the server
  *
  * @example
@@ -125,8 +149,10 @@ export function matchServerRoutes(
   const orderedRoutes = [...staticRoutes, ...dynamicRoutes, ...catchAllRoutes];
 
   for (const route of orderedRoutes) {
-    const fullPath = joinPaths(parentPath, route.path as string);
-    const patterns = (route.path as string).split("|");
+    const normalizedRoutePath = normalizePath(route.path);
+    const firstPath = getFirstPath(route.path);
+    const fullPath = joinPaths(parentPath, firstPath);
+    const patterns = normalizedRoutePath.split("|");
 
     for (const pattern of patterns) {
       const fullPattern = joinPaths(parentPath, pattern);
@@ -184,8 +210,13 @@ export function matchServerRoutes(
 
     // Check children even if parent doesn't match
     if (route.children) {
-      const fullPath = joinPaths(parentPath, route.path as string);
-      const childResult = matchServerRoutes(route.children, pathname, fullPath);
+      const firstPath = getFirstPath(route.path);
+      const childFullPath = joinPaths(parentPath, firstPath);
+      const childResult = matchServerRoutes(
+        route.children,
+        pathname,
+        childFullPath
+      );
       if (childResult.matches.length > 0 || childResult.redirect) {
         return childResult;
       }

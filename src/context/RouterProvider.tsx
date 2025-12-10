@@ -1,4 +1,4 @@
-import {
+import React, {
   ReactNode,
   Suspense,
   useCallback,
@@ -11,7 +11,6 @@ import {
 import join from "url-join";
 import Page404 from "../pages/404";
 import type {
-  GetComponent,
   Location,
   NavigateFunction,
   NavigateOptions,
@@ -39,6 +38,39 @@ const validateUrl = (url: string): boolean => {
   } catch {
     return false;
   }
+};
+
+/**
+ * Normalize path to string (handles array paths)
+ * Preserves '/' as a special case for root path
+ */
+const normalizePath = (path: string | string[]): string => {
+  if (Array.isArray(path)) {
+    return path
+      .map((p) => {
+        // Keep "/" as empty string to represent root
+        if (p === "/") return "";
+        return p.startsWith("/") ? p.slice(1) : p;
+      })
+      .join("|");
+  }
+  // Keep "/" as empty string to represent root
+  if (path === "/") return "";
+  return path.startsWith("/") ? path.slice(1) : path;
+};
+
+/**
+ * Get the first path from a path (string or array)
+ */
+const getFirstPath = (path: string | string[]): string => {
+  if (Array.isArray(path)) {
+    return path[0] || "";
+  }
+  // Handle pipe-separated paths (already normalized)
+  if (path.includes("|")) {
+    return path.split("|")[0];
+  }
+  return path;
 };
 
 /**
@@ -77,8 +109,17 @@ const extractParams = (
   pattern: string,
   pathname: string
 ): Record<string, string> | null => {
-  const patternParts = pattern.split("/").filter(Boolean);
-  const pathParts = pathname.split("/").filter(Boolean);
+  // Special case: root path matching
+  const normalizedPattern = pattern === "/" ? "" : pattern;
+  const normalizedPathname = pathname === "/" ? "" : pathname;
+
+  const patternParts = normalizedPattern.split("/").filter(Boolean);
+  const pathParts = normalizedPathname.split("/").filter(Boolean);
+
+  // Both empty means root path match
+  if (patternParts.length === 0 && pathParts.length === 0) {
+    return {};
+  }
 
   if (patternParts.length !== pathParts.length) {
     // Check for catch-all pattern
@@ -120,6 +161,235 @@ const extractParams = (
 };
 
 /**
+ * Result from route matching (pure function result)
+ */
+interface MatchResult {
+  component: React.ReactNode;
+  pattern: string;
+  params: Record<string, string>;
+  matches: RouteMatch[];
+  meta: RouteMeta | null;
+  redirect?: string;
+  loader?: {
+    fn: (args: any) => Promise<any> | any;
+    params: Record<string, string>;
+  };
+  page404Component?: ReactNode;
+}
+
+/**
+ * Match a single path pattern against current pathname (pure function)
+ */
+const matchPathPattern = (
+  routePattern: string,
+  currentPath: string
+): {
+  match: boolean;
+  params: Record<string, string>;
+  pattern: string;
+} | null => {
+  const patterns = routePattern.split("|");
+
+  for (const pat of patterns) {
+    // Handle root path pattern
+    const normalizedPat = pat === "" ? "/" : pat;
+    const extractedParams = extractParams(normalizedPat, currentPath);
+    if (extractedParams !== null) {
+      return { match: true, params: extractedParams, pattern: normalizedPat };
+    }
+  }
+  return null;
+};
+
+/**
+ * Pure function to match routes and return result without side effects
+ */
+const matchRoutes = (
+  routesList: Route[],
+  currentPath: string,
+  parentPath: string = "/",
+  searchString: string = "",
+  collectedMatches: RouteMatch[] = []
+): MatchResult => {
+  const staticRoutes: Route[] = [];
+  const dynamicRoutes: Route[] = [];
+  const catchAllRoutes: Route[] = [];
+  let page404Component: ReactNode = null;
+
+  for (const route of routesList) {
+    const pathArray = Array.isArray(route.path)
+      ? route.path
+      : route.path.includes("|")
+      ? route.path.split("|")
+      : [route.path];
+    const is404 = pathArray.some((p) => p === "404" || p === "/404");
+    if (is404) {
+      page404Component = route.component;
+      continue;
+    }
+
+    const hasCatchAll = pathArray.some((p) => p.includes("*"));
+    const hasDynamicParams = pathArray.some((p) => p.includes(":"));
+
+    if (hasCatchAll) {
+      catchAllRoutes.push(route);
+    } else if (hasDynamicParams) {
+      dynamicRoutes.push(route);
+    } else {
+      staticRoutes.push(route);
+    }
+  }
+
+  // Priority: static > dynamic > catch-all
+  const orderedRoutes = [...staticRoutes, ...dynamicRoutes, ...catchAllRoutes];
+
+  for (const route of orderedRoutes) {
+    const normalizedRoutePath = normalizePath(route.path);
+    const firstPath = getFirstPath(route.path);
+    // Handle root path correctly
+    const fullPath =
+      firstPath === "/" || firstPath === ""
+        ? parentPath
+        : join(parentPath, `/${firstPath}`);
+    // Build full pattern for matching (handles multiple paths)
+    const fullPattern = normalizedRoutePath.includes("|")
+      ? normalizedRoutePath
+          .split("|")
+          .map((p) => {
+            // Handle empty string (root path) correctly
+            if (p === "") return parentPath;
+            return join(parentPath, `/${p}`);
+          })
+          .join("|")
+      : fullPath;
+    const matchResult = matchPathPattern(fullPattern, currentPath);
+
+    if (matchResult) {
+      // Handle redirects
+      if (route.redirectTo) {
+        return {
+          component: null,
+          pattern: matchResult.pattern,
+          params: matchResult.params,
+          matches: collectedMatches,
+          meta: null,
+          redirect: route.redirectTo,
+          page404Component,
+        };
+      }
+
+      // Handle guards
+      if (route.guard) {
+        const guardResult = route.guard({
+          pathname: currentPath,
+          params: matchResult.params,
+          search: searchString,
+        });
+
+        if (typeof guardResult === "string") {
+          return {
+            component: null,
+            pattern: matchResult.pattern,
+            params: matchResult.params,
+            matches: collectedMatches,
+            meta: null,
+            redirect: guardResult,
+            page404Component,
+          };
+        }
+        if (guardResult === false) {
+          continue; // Skip this route
+        }
+      }
+
+      // Build match object
+      const newMatch: RouteMatch = {
+        route,
+        params: matchResult.params,
+        pathname: currentPath,
+        pathnameBase: parentPath,
+        pattern: matchResult.pattern,
+      };
+
+      const newMatches = [...collectedMatches, newMatch];
+
+      // Handle nested routes with Outlet support
+      if (route.children && route.children.length > 0) {
+        const childResult = matchRoutes(
+          route.children,
+          currentPath,
+          fullPath,
+          searchString,
+          newMatches
+        );
+
+        if (childResult.component || childResult.redirect) {
+          // Wrap parent component with OutletProvider to render children via Outlet
+          return {
+            component: (
+              <OutletProvider
+                outlet={childResult.component}
+                childRoutes={route.children}
+                matches={newMatches}
+                depth={parentPath.split("/").filter(Boolean).length}
+              >
+                {route.component}
+              </OutletProvider>
+            ),
+            pattern: matchResult.pattern,
+            params: { ...matchResult.params, ...childResult.params },
+            matches: childResult.matches,
+            meta: route.meta || childResult.meta,
+            loader: route.loader
+              ? { fn: route.loader, params: matchResult.params }
+              : childResult.loader,
+            page404Component: page404Component || childResult.page404Component,
+          };
+        }
+      }
+
+      return {
+        component: route.component,
+        pattern: matchResult.pattern,
+        params: matchResult.params,
+        matches: newMatches,
+        meta: route.meta || null,
+        loader: route.loader
+          ? { fn: route.loader, params: matchResult.params }
+          : undefined,
+        page404Component,
+      };
+    }
+
+    // Check children routes (for routes without matching parent)
+    if (route.children) {
+      const childResult = matchRoutes(
+        route.children,
+        currentPath,
+        fullPath,
+        searchString,
+        collectedMatches
+      );
+      if (childResult.component || childResult.redirect) {
+        return {
+          ...childResult,
+          page404Component: page404Component || childResult.page404Component,
+        };
+      }
+    }
+  }
+
+  return {
+    component: null,
+    pattern: "",
+    params: {},
+    matches: collectedMatches,
+    meta: null,
+    page404Component,
+  };
+};
+
+/**
  * RouterProvider - Professional-grade router provider component
  *
  * Features:
@@ -138,14 +408,9 @@ const RouterProvider = ({
   fallbackElement,
 }: RouterProviderProps) => {
   const [location, setLocation] = useState<Location>(getCurrentLocation);
-  const [pattern, setPattern] = useState<string>("");
-  const [params, setParams] = useState<Record<string, string>>({});
-  const [matches, setMatches] = useState<RouteMatch[]>([]);
   const [loaderData, setLoaderData] = useState<any>(null);
-  const [meta, setMeta] = useState<RouteMeta | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const page404Ref = useRef<ReactNode>(null);
   const scrollPositions = useRef<Map<string, number>>(new Map());
   const isNavigatingRef = useRef(false);
 
@@ -160,173 +425,6 @@ const RouterProvider = ({
       return pathname;
     },
     [basename]
-  );
-
-  /**
-   * Match a single path pattern against current pathname
-   */
-  const matchPath = useCallback(
-    (
-      routePattern: string,
-      currentPath: string
-    ): {
-      match: boolean;
-      params: Record<string, string>;
-      pattern: string;
-    } | null => {
-      const patterns = routePattern.split("|");
-
-      for (const pat of patterns) {
-        const extractedParams = extractParams(pat, currentPath);
-        if (extractedParams !== null) {
-          return { match: true, params: extractedParams, pattern: pat };
-        }
-      }
-      return null;
-    },
-    []
-  );
-
-  /**
-   * Get component and match info from routes
-   */
-  const getComponent: GetComponent = useCallback(
-    (routesList, currentPath, parentPath = "/") => {
-      const staticRoutes: Route[] = [];
-      const dynamicRoutes: Route[] = [];
-      const catchAllRoutes: Route[] = [];
-
-      for (const route of routesList) {
-        const is404 = route.path === "404" || route.path === "/404";
-        if (is404) {
-          page404Ref.current = route.component;
-          continue;
-        }
-
-        const pathArray = Array.isArray(route.path) ? route.path : [route.path];
-        const hasCatchAll = pathArray.some((p) => p.includes("*"));
-        const hasDynamicParams = pathArray.some((p) => p.includes(":"));
-
-        if (hasCatchAll) {
-          catchAllRoutes.push(route);
-        } else if (hasDynamicParams) {
-          dynamicRoutes.push(route);
-        } else {
-          staticRoutes.push(route);
-        }
-      }
-
-      // Priority: static > dynamic > catch-all
-      const orderedRoutes = [
-        ...staticRoutes,
-        ...dynamicRoutes,
-        ...catchAllRoutes,
-      ];
-
-      for (const route of orderedRoutes) {
-        const fullPath = join(parentPath, `/${route.path}`);
-        const matchResult = matchPath(fullPath, currentPath);
-
-        if (matchResult) {
-          // Handle redirects
-          if (route.redirectTo) {
-            // Schedule redirect in next tick to avoid state update during render
-            setTimeout(() => navigate(route.redirectTo!), 0);
-            return null;
-          }
-
-          // Handle guards
-          if (route.guard) {
-            const guardResult = route.guard({
-              pathname: currentPath,
-              params: matchResult.params,
-              search: location.search,
-            });
-
-            if (typeof guardResult === "string") {
-              setTimeout(() => navigate(guardResult), 0);
-              return null;
-            }
-            if (guardResult === false) {
-              continue; // Skip this route
-            }
-          }
-
-          // Update matches state
-          const newMatch: RouteMatch = {
-            route,
-            params: matchResult.params,
-            pathname: currentPath,
-            pathnameBase: parentPath,
-            pattern: matchResult.pattern,
-          };
-
-          if (pattern !== matchResult.pattern) {
-            setPattern(matchResult.pattern);
-          }
-          if (JSON.stringify(params) !== JSON.stringify(matchResult.params)) {
-            setParams(matchResult.params);
-          }
-          setMatches((prev) => [...prev, newMatch]);
-
-          // Handle route meta
-          if (route.meta) {
-            setMeta(route.meta);
-            if (route.meta.title && typeof document !== "undefined") {
-              document.title = route.meta.title;
-            }
-          }
-
-          // Handle loader
-          if (route.loader) {
-            const abortController = new AbortController();
-            Promise.resolve(
-              route.loader({
-                params: matchResult.params,
-                request: new Request(window.location.href),
-                signal: abortController.signal,
-              })
-            ).then(setLoaderData);
-          }
-
-          // Handle nested routes with Outlet support
-          if (route.children && route.children.length > 0) {
-            const childComponent = getComponent(
-              route.children,
-              currentPath,
-              fullPath
-            );
-
-            // Wrap parent component with OutletProvider to render children via Outlet
-            return (
-              <OutletProvider
-                outlet={childComponent}
-                childRoutes={route.children}
-                matches={matches}
-                depth={parentPath.split("/").filter(Boolean).length}
-              >
-                {route.component}
-              </OutletProvider>
-            );
-          }
-
-          return route.component;
-        }
-
-        // Check children routes (for routes without matching parent)
-        if (route.children) {
-          const childMatch = getComponent(
-            route.children,
-            currentPath,
-            fullPath
-          );
-          if (childMatch) return childMatch;
-        }
-      }
-
-      return null;
-    },
-    [location.search, matchPath, params, pattern]
   );
 
   /**
@@ -380,7 +478,6 @@ const RouterProvider = ({
         // Use transition for better UX
         startTransition(() => {
           setLocation(getCurrentLocation());
-          setMatches([]); // Reset matches for new route
         });
 
         // Scroll to top unless prevented
@@ -425,7 +522,6 @@ const RouterProvider = ({
     const handleLocationChange = () => {
       startTransition(() => {
         setLocation(getCurrentLocation());
-        setMatches([]); // Reset matches for new route
       });
     };
 
@@ -465,15 +561,47 @@ const RouterProvider = ({
   }, []);
 
   /**
-   * Compute matched component
+   * Compute matched route result (pure computation)
    */
   const normalizedPath = normalizePathname(location.pathname);
-  const matchedComponent = useMemo(
-    () => getComponent(routes, normalizedPath),
-    [routes, normalizedPath, getComponent]
+
+  const matchResult = useMemo(
+    () => matchRoutes(routes, normalizedPath, "/", location.search),
+    [routes, normalizedPath, location.search]
   );
 
-  const component = matchedComponent ?? (page404Ref.current || <Page404 />);
+  // Handle redirects
+  useEffect(() => {
+    if (matchResult.redirect) {
+      navigate(matchResult.redirect);
+    }
+  }, [matchResult.redirect, navigate]);
+
+  // Handle loaders
+  useEffect(() => {
+    if (matchResult.loader) {
+      const abortController = new AbortController();
+      Promise.resolve(
+        matchResult.loader.fn({
+          params: matchResult.loader.params,
+          request: new Request(window.location.href),
+          signal: abortController.signal,
+        })
+      ).then(setLoaderData);
+
+      return () => abortController.abort();
+    }
+  }, [matchResult.loader]);
+
+  // Handle meta/title updates
+  useEffect(() => {
+    if (matchResult.meta?.title && typeof document !== "undefined") {
+      document.title = matchResult.meta.title;
+    }
+  }, [matchResult.meta]);
+
+  const component =
+    matchResult.component ?? (matchResult.page404Component || <Page404 />);
 
   /**
    * Build context value with memoization
@@ -482,37 +610,37 @@ const RouterProvider = ({
     () => ({
       // New API
       pathname: normalizedPath,
-      pattern,
+      pattern: matchResult.pattern,
       search: location.search,
       hash: location.hash,
       state: location.state,
-      params,
-      matches,
+      params: matchResult.params,
+      matches: matchResult.matches,
       navigate,
       back,
       forward,
       isNavigating: isPending || isNavigatingRef.current,
       loaderData,
-      meta,
+      meta: matchResult.meta,
 
       // Legacy aliases for backward compatibility
       path: normalizedPath,
-      fullPathWithParams: pattern,
+      fullPathWithParams: matchResult.pattern,
     }),
     [
       normalizedPath,
-      pattern,
+      matchResult.pattern,
       location.search,
       location.hash,
       location.state,
-      params,
-      matches,
+      matchResult.params,
+      matchResult.matches,
       navigate,
       back,
       forward,
       isPending,
       loaderData,
-      meta,
+      matchResult.meta,
     ]
   );
 

@@ -1,6 +1,6 @@
 # Router-Kit - Complete Documentation
 
-**Version:** 1.3.1  
+**Version:** 2.0.0  
 **Author:** Mohammed Ben Cheikh  
 **License:** MIT  
 **Repository:** [github.com/Mohammed-Ben-Cheikh/router-kit](https://github.com/Mohammed-Ben-Cheikh/router-kit)
@@ -14,7 +14,15 @@
 3. [Quick Start](#quick-start)
 4. [Core Concepts](#core-concepts)
 5. [API Reference](#api-reference)
+   - [Components](#components)
+   - [Hooks](#hooks)
+   - [Types](#types)
 6. [Advanced Usage](#advanced-usage)
+   - [Route Guards](#route-guards)
+   - [Data Loading](#data-loading)
+   - [Navigation Blocking](#navigation-blocking)
+   - [Scroll Restoration](#scroll-restoration)
+   - [Lazy Loading](#lazy-loading)
 7. [Error Handling](#error-handling)
 8. [TypeScript Support](#typescript-support)
 9. [Best Practices](#best-practices)
@@ -26,31 +34,40 @@
 
 ## Introduction
 
-**Router-Kit** is a lightweight, minimal, and powerful client-side routing library for React applications. It provides a simple yet flexible way to handle routing in your React apps without the overhead of larger routing libraries.
+**Router-Kit** is a professional-grade, feature-rich client-side routing library for React applications. Version 2.0 brings React Router-like capabilities while maintaining a clean, intuitive API.
 
 ### Key Features
 
-- ✨ **Lightweight**: Minimal dependencies (only `react`, `react-dom`, and `url-join`)
-- 🚀 **Simple API**: Easy to learn and use
-- 🎯 **Type-Safe**: Full TypeScript support with comprehensive type definitions
+- ✨ **Lightweight**: Minimal dependencies with powerful features
+- 🚀 **Simple API**: Easy to learn, familiar patterns from React Router
+- 🎯 **Type-Safe**: Full TypeScript support with 25+ type definitions
 - 🔄 **Dynamic Routes**: Support for route parameters (`:id`, `:slug`, etc.)
 - 🌳 **Nested Routes**: Build complex route hierarchies
-- 🔗 **Navigation Components**: Built-in `Link` and `NavLink` components
-- 🪝 **Powerful Hooks**: Access routing state with React hooks
-- 🎨 **Custom 404 Pages**: Easy error page configuration
+- 🔗 **Navigation Components**: Enhanced `Link` and `NavLink` with forwardRef
+- 🪝 **Powerful Hooks**: 8 hooks for complete routing control
+- 🛡️ **Route Guards**: Built-in authentication and authorization support
+- 📦 **Data Loading**: Route-level data fetching with loaders
+- 🚫 **Navigation Blocking**: Prevent accidental navigation with blockers
+- 🎭 **Outlet**: Nested route rendering for professional layouts
+- 📜 **Scroll Restoration**: Automatic scroll position management
+- ⚡ **Lazy Loading**: Code splitting with React.lazy support
+- 🎨 **Custom Error Pages**: Configurable 404 and error handling
+- 📋 **Route Metadata**: SEO and document title management
 - 🔀 **Multiple Path Aliases**: Support for multiple paths per route
-- 📦 **Dynamic Components**: Conditional component rendering based on route params
 - ⚠️ **Error System**: Comprehensive error handling with detailed context
 
-### Why Router-Kit?
+### What's New in v2.0
 
-Router-Kit was designed to be a simpler alternative to complex routing libraries while still providing all the essential features you need:
-
-- No complex configuration files
-- No route configuration DSL to learn
-- Direct component rendering (JSX elements, not lazy imports)
-- Straightforward programmatic navigation
-- Perfect for small to medium-sized applications
+- **Route Guards**: Async authentication/authorization with redirects
+- **Data Loaders**: Fetch data before rendering routes
+- **Navigation Blocking**: Block navigation with custom prompts
+- **Scroll Restoration**: Auto/manual scroll position management
+- **Outlet Component**: Professional nested layouts with `<Outlet />` and `useOutletContext`
+- **New Hooks**: `useNavigate`, `useMatches`, `useBlocker`, `useLoaderData`, `useSearchParams`, `useOutlet`, `useOutletContext`
+- **Enhanced Components**: ForwardRef support, external link detection
+- **Basename Support**: Deploy to any subdirectory
+- **Route Metadata**: Document titles and custom meta data
+- **Lazy Loading**: Built-in code splitting support
 
 ---
 
@@ -89,12 +106,12 @@ Router-Kit requires React 16 or higher:
 
 ## Quick Start
 
-Here's a minimal example to get you started:
+Here's a minimal example to get you started with Router-Kit v2.0:
 
 ```tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createRouter, RouterProvider, Link } from "router-kit";
+import { createRouter, RouterProvider, Link, useNavigate } from "router-kit";
 
 // Define your page components
 const Home = () => (
@@ -104,25 +121,52 @@ const Home = () => (
   </div>
 );
 
-const About = () => (
-  <div>
-    <h1>About Page</h1>
-    <Link to="/">Go to Home</Link>
-  </div>
-);
+const About = () => {
+  const navigate = useNavigate();
+
+  return (
+    <div>
+      <h1>About Page</h1>
+      <button onClick={() => navigate("/")}>Go to Home</button>
+    </div>
+  );
+};
+
+const UserProfile = () => {
+  const { id } = useParams<{ id: string }>();
+  return <div>User ID: {id}</div>;
+};
 
 const NotFound = () => <div>404 - Page Not Found</div>;
 
-// Create your routes
+// Create your routes with guards and loaders
 const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: "about", component: <About /> },
+  {
+    path: "/",
+    component: <Home />,
+    meta: { title: "Home - My App" },
+  },
+  {
+    path: "about",
+    component: <About />,
+    meta: { title: "About - My App" },
+  },
+  {
+    path: "users/:id",
+    component: <UserProfile />,
+    loader: async ({ params }) => {
+      const res = await fetch(`/api/users/${params.id}`);
+      return res.json();
+    },
+  },
   { path: "/404", component: <NotFound /> },
 ]);
 
 // Render your app
 function App() {
-  return <RouterProvider routes={routes} />;
+  return (
+    <RouterProvider routes={routes} basename="/app" scrollRestoration="auto" />
+  );
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
@@ -135,13 +179,20 @@ root.render(<App />);
 
 ### Routes
 
-A route is an object that maps a URL path to a React component:
+A route is an object that maps a URL path to a React component with optional configuration:
 
 ```typescript
 interface Route {
-  path: string | string[]; // The URL path(s) to match
-  component: JSX.Element; // The component to render
+  path: string | string[]; // URL path(s) to match
+  component: JSX.Element; // Component to render
   children?: Route[]; // Nested child routes
+  loader?: RouteLoader; // Data loading function
+  guard?: RouteGuard; // Authentication/authorization
+  meta?: RouteMeta; // Metadata (title, etc.)
+  redirectTo?: string; // Redirect destination
+  errorElement?: JSX.Element; // Error fallback component
+  lazy?: () => Promise<{ default: ComponentType }>; // Lazy loading
+  index?: boolean; // Index route flag
 }
 ```
 
@@ -149,18 +200,33 @@ interface Route {
 
 The `RouterProvider` is the main component that:
 
-- Listens to URL changes
-- Matches the current URL to a route
+- Listens to URL changes via History API
+- Matches the current URL to routes
+- Executes route guards and loaders
 - Renders the appropriate component
-- Provides routing context to child components
+- Provides routing context to all descendants
+- Manages scroll restoration
+- Handles navigation blocking
+
+**Props:**
+
+```typescript
+interface RouterProviderProps {
+  routes: Route[]; // Routes from createRouter
+  basename?: string; // Base URL path (e.g., "/app")
+  scrollRestoration?: "auto" | "manual"; // Scroll behavior
+  fallback?: ReactNode; // Suspense fallback for lazy routes
+}
+```
 
 ### Navigation
 
 Router-Kit provides multiple ways to navigate:
 
-1. **Link Component**: Declarative navigation with anchor tags
-2. **NavLink Component**: Link with active state styling
-3. **navigate() Function**: Programmatic navigation via the `useRouter` hook
+1. **Link Component**: Declarative navigation with enhanced features
+2. **NavLink Component**: Link with active state styling and partial matching
+3. **useNavigate Hook**: Programmatic navigation function
+4. **useRouter Hook**: Full router context access
 
 ### Route Matching
 
@@ -168,9 +234,10 @@ Routes are matched using the following rules:
 
 1. **Static Routes**: Exact path matching (e.g., `/about`, `/contact`)
 2. **Dynamic Routes**: Parameters prefixed with `:` (e.g., `/users/:id`)
-3. **Multiple Paths**: Routes can have multiple path aliases using arrays
-4. **Nested Routes**: Child routes inherit parent paths
-5. **Priority**: Static routes are matched before dynamic routes
+3. **Catch-all Routes**: Match remaining path segments
+4. **Multiple Paths**: Routes can have multiple path aliases
+5. **Nested Routes**: Child routes inherit parent paths
+6. **Priority**: Static routes are matched before dynamic routes
 
 ---
 
@@ -178,17 +245,18 @@ Routes are matched using the following rules:
 
 ### createRouter(routes)
 
-Creates and normalizes a route configuration.
+Creates and normalizes a route configuration with validation.
 
 **Parameters:**
 
 - `routes`: `Route[]` - Array of route objects
 
-**Returns:** `Route[]` - Normalized routes
+**Returns:** `Route[]` - Normalized and validated routes
 
 **Features:**
 
-- Removes leading slashes from paths
+- Normalizes paths (removes leading slashes)
+- Validates route configuration
 - Handles multiple path aliases
 - Recursively processes nested routes
 
@@ -196,11 +264,22 @@ Creates and normalizes a route configuration.
 
 ```tsx
 const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: ["about", "about-us"], component: <About /> },
+  {
+    path: "/",
+    component: <Home />,
+    meta: { title: "Home" },
+  },
+  {
+    path: ["about", "about-us"],
+    component: <About />,
+  },
   {
     path: "users",
     component: <Users />,
+    guard: async () => {
+      const isAuthenticated = await checkAuth();
+      return isAuthenticated || { redirect: "/login" };
+    },
     children: [{ path: ":id", component: <UserDetail /> }],
   },
   { path: "/404", component: <NotFound /> },
@@ -215,35 +294,52 @@ The main routing component that wraps your application.
 
 **Props:**
 
-- `routes`: `Route[]` - The routes created by `createRouter()`
-
-**Context Provided:**
-
-- `path`: Current pathname
-- `fullPathWithParams`: Route pattern with parameters (e.g., `/users/:id`)
-- `navigate`: Function to programmatically navigate
+| Prop                | Type                 | Default  | Description                      |
+| ------------------- | -------------------- | -------- | -------------------------------- |
+| `routes`            | `Route[]`            | required | Routes from `createRouter()`     |
+| `basename`          | `string`             | `""`     | Base URL path for all routes     |
+| `scrollRestoration` | `"auto" \| "manual"` | `"auto"` | Scroll position management       |
+| `fallback`          | `ReactNode`          | `null`   | Loading fallback for lazy routes |
 
 **Example:**
 
 ```tsx
 function App() {
-  return <RouterProvider routes={routes} />;
+  return (
+    <RouterProvider
+      routes={routes}
+      basename="/my-app"
+      scrollRestoration="auto"
+      fallback={<LoadingSpinner />}
+    />
+  );
 }
 ```
-
-**Important:** All Router-Kit hooks and components must be used inside `RouterProvider`.
 
 ---
 
 ### Link Component
 
-A navigation component that renders an anchor tag without full page reload.
+A navigation component with enhanced features including forwardRef support.
 
 **Props:**
 
-- `to`: `string` - Destination path (required)
-- `children`: `ReactNode` - Link content (required)
-- `className?`: `string` - CSS class name (optional)
+| Prop        | Type        | Default  | Description           |
+| ----------- | ----------- | -------- | --------------------- |
+| `to`        | `string`    | required | Destination path      |
+| `children`  | `ReactNode` | required | Link content          |
+| `className` | `string`    | -        | CSS class name        |
+| `replace`   | `boolean`   | `false`  | Replace history entry |
+| `state`     | `any`       | -        | Navigation state      |
+| `target`    | `string`    | -        | Link target attribute |
+| `rel`       | `string`    | -        | Link rel attribute    |
+
+**Features:**
+
+- **ForwardRef**: Access the underlying anchor element
+- **External Links**: Automatically detects and handles external URLs
+- **Security**: Adds `rel="noopener noreferrer"` for external links
+- **Navigation Options**: Support for replace and state
 
 **Example:**
 
@@ -251,13 +347,23 @@ A navigation component that renders an anchor tag without full page reload.
 import { Link } from "router-kit";
 
 function Navigation() {
+  const linkRef = useRef<HTMLAnchorElement>(null);
+
   return (
     <nav>
-      <Link to="/">Home</Link>
+      <Link to="/" ref={linkRef}>
+        Home
+      </Link>
       <Link to="/about" className="nav-link">
         About
       </Link>
-      <Link to="/users/123">User Profile</Link>
+      <Link to="/users/123" state={{ from: "nav" }}>
+        User Profile
+      </Link>
+      <Link to="/login" replace>
+        Login
+      </Link>
+      <Link to="https://external.com">External Link</Link>
     </nav>
   );
 }
@@ -267,14 +373,26 @@ function Navigation() {
 
 ### NavLink Component
 
-Similar to `Link` but adds an active class when the current route matches.
+Similar to `Link` but with active state styling and partial matching support.
 
 **Props:**
 
-- `to`: `string` - Destination path (required)
-- `children`: `ReactNode` - Link content (required)
-- `className?`: `string` - CSS class name (optional)
-- `activeClassName?`: `string` - Class when route is active (default: `"active"`)
+Inherits all Link props plus:
+
+| Prop              | Type                                  | Default    | Description                   |
+| ----------------- | ------------------------------------- | ---------- | ----------------------------- |
+| `activeClassName` | `string`                              | `"active"` | Class when route matches      |
+| `activeStyle`     | `CSSProperties`                       | -          | Style when route matches      |
+| `end`             | `boolean`                             | `false`    | Exact match only (no partial) |
+| `isActive`        | `(match, location) => boolean`        | -          | Custom active logic           |
+| `children`        | `ReactNode \| ((props) => ReactNode)` | required   | Content or render function    |
+
+**Features:**
+
+- **Partial Matching**: `/users` is active for `/users/123`
+- **Exact Matching**: Use `end` prop for exact matching only
+- **Custom Active Logic**: Override with `isActive` function
+- **Render Props**: Access `isActive` in children function
 
 **Example:**
 
@@ -284,29 +402,252 @@ import { NavLink } from "router-kit";
 function Navigation() {
   return (
     <nav>
-      <NavLink to="/" activeClassName="active">
+      {/* Exact match only for home */}
+      <NavLink to="/" end activeClassName="active">
         Home
       </NavLink>
-      <NavLink to="/about" activeClassName="selected">
-        About
+
+      {/* Partial matching for users section */}
+      <NavLink
+        to="/users"
+        activeClassName="active"
+        activeStyle={{ fontWeight: "bold" }}
+      >
+        Users
       </NavLink>
-      <NavLink to="/contact">Contact</NavLink>
+
+      {/* Custom active logic */}
+      <NavLink
+        to="/dashboard"
+        isActive={(match, location) => {
+          return location.pathname.startsWith("/dashboard");
+        }}
+      >
+        Dashboard
+      </NavLink>
+
+      {/* Render props pattern */}
+      <NavLink to="/settings">
+        {({ isActive }) => (
+          <span className={isActive ? "active" : ""}>
+            ⚙️ Settings {isActive && "✓"}
+          </span>
+        )}
+      </NavLink>
     </nav>
   );
 }
 ```
 
-**Styling:**
+---
 
-```css
-.nav-link {
-  color: #333;
-  text-decoration: none;
+### Route Component
+
+Define routes declaratively with JSX.
+
+**Props:**
+
+| Prop           | Type                 | Description           |
+| -------------- | -------------------- | --------------------- |
+| `path`         | `string \| string[]` | URL path(s) to match  |
+| `component`    | `JSX.Element`        | Component to render   |
+| `children`     | `ReactNode`          | Nested Route elements |
+| `loader`       | `RouteLoader`        | Data loading function |
+| `guard`        | `RouteGuard`         | Guard function        |
+| `meta`         | `RouteMeta`          | Route metadata        |
+| `redirectTo`   | `string`             | Redirect destination  |
+| `errorElement` | `JSX.Element`        | Error fallback        |
+| `lazy`         | `() => Promise`      | Lazy loading function |
+| `index`        | `boolean`            | Index route flag      |
+
+**Example:**
+
+```tsx
+import { Router, Route } from "router-kit";
+
+function App() {
+  return (
+    <Router fallback={<Loading />}>
+      <Route path="/" component={<Home />} meta={{ title: "Home" }} />
+      <Route path="users" component={<UsersLayout />} guard={authGuard}>
+        <Route index component={<UsersList />} />
+        <Route path=":id" component={<UserProfile />} loader={userLoader} />
+      </Route>
+      <Route path="/404" component={<NotFound />} />
+    </Router>
+  );
+}
+```
+
+---
+
+### Outlet Component
+
+Renders the child route's element, if there is one. Used in parent route elements to render their child routes. This pattern enables nested layouts similar to React Router.
+
+**Props:**
+
+| Prop      | Type  | Default | Description                       |
+| --------- | ----- | ------- | --------------------------------- |
+| `context` | `any` | -       | Context value to pass to children |
+
+**Features:**
+
+- **Nested Layouts**: Build complex UI layouts with parent-child relationships
+- **Context Passing**: Share data between parent and child routes
+- **TypeScript Support**: Full generic types for context values
+- **React Router Compatible**: Familiar API for React Router users
+
+**Example - Basic Layout:**
+
+```tsx
+import { Outlet } from "router-kit";
+
+// Parent layout component
+function DashboardLayout() {
+  return (
+    <div className="dashboard">
+      <header>Dashboard Header</header>
+      <nav>
+        <Link to="/dashboard">Overview</Link>
+        <Link to="/dashboard/analytics">Analytics</Link>
+        <Link to="/dashboard/settings">Settings</Link>
+      </nav>
+      <main>
+        <Outlet /> {/* Child routes render here */}
+      </main>
+      <footer>Dashboard Footer</footer>
+    </div>
+  );
 }
 
-.nav-link.active {
-  color: #007bff;
-  font-weight: bold;
+// Child components
+const DashboardOverview = () => <h2>Overview</h2>;
+const DashboardAnalytics = () => <h2>Analytics</h2>;
+const DashboardSettings = () => <h2>Settings</h2>;
+
+// Route configuration
+const routes = createRouter([
+  {
+    path: "dashboard",
+    component: <DashboardLayout />,
+    children: [
+      { index: true, component: <DashboardOverview /> },
+      { path: "analytics", component: <DashboardAnalytics /> },
+      { path: "settings", component: <DashboardSettings /> },
+    ],
+  },
+]);
+```
+
+**Example - With Context:**
+
+```tsx
+import { Outlet, useOutletContext } from "router-kit";
+
+// Parent passes context to children
+function UserLayout() {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    fetchCurrentUser().then(setUser);
+  }, []);
+
+  return (
+    <div className="user-layout">
+      <UserSidebar user={user} />
+      <main>
+        {/* Pass user data to child routes */}
+        <Outlet context={{ user, setUser }} />
+      </main>
+    </div>
+  );
+}
+
+// Child accesses context
+interface UserContext {
+  user: User | null;
+  setUser: (user: User | null) => void;
+}
+
+function UserProfile() {
+  const { user, setUser } = useOutletContext<UserContext>();
+
+  if (!user) return <Loading />;
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <button onClick={() => setUser(null)}>Logout</button>
+    </div>
+  );
+}
+```
+
+---
+
+### useOutlet()
+
+Hook to get the child route element. Returns `null` if there's no child route.
+
+**Signature:**
+
+```typescript
+function useOutlet(): React.ReactElement | null;
+```
+
+**Example:**
+
+```tsx
+import { useOutlet } from "router-kit";
+
+function Layout() {
+  const outlet = useOutlet();
+
+  return (
+    <div>
+      <Header />
+      {outlet || <DefaultContent />}
+      <Footer />
+    </div>
+  );
+}
+```
+
+---
+
+### useOutletContext()
+
+Hook to access the context value passed from a parent route's `<Outlet context={...} />`.
+
+**Signature:**
+
+```typescript
+function useOutletContext<T = any>(): T;
+```
+
+**Example:**
+
+```tsx
+import { useOutletContext } from "router-kit";
+
+// Type-safe context access
+interface DashboardContext {
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+  notifications: Notification[];
+}
+
+function ChildRoute() {
+  const { theme, toggleTheme, notifications } =
+    useOutletContext<DashboardContext>();
+
+  return (
+    <div className={`page theme-${theme}`}>
+      <button onClick={toggleTheme}>Toggle Theme</button>
+      <span>Notifications: {notifications.length}</span>
+    </div>
+  );
 }
 ```
 
@@ -314,7 +655,7 @@ function Navigation() {
 
 ### useRouter()
 
-Hook to access the router context.
+Hook to access the complete router context.
 
 **Returns:**
 
@@ -322,7 +663,13 @@ Hook to access the router context.
 {
   path: string;                    // Current pathname
   fullPathWithParams: string;      // Route pattern with params
-  navigate: (to: string, options?: NavigateOptions) => void;
+  params: Record<string, string>;  // Route parameters
+  query: Record<string, string>;   // Query parameters
+  location: Location;              // Full location object
+  navigate: NavigateFunction;      // Navigation function
+  matches: RouteMatch[];           // Matched route hierarchy
+  loaderData: any;                 // Data from route loader
+  basename: string;                // Router basename
 }
 ```
 
@@ -332,76 +679,119 @@ Hook to access the router context.
 import { useRouter } from "router-kit";
 
 function MyComponent() {
-  const { path, navigate } = useRouter();
+  const { path, params, query, navigate, loaderData } = useRouter();
 
   return (
     <div>
       <p>Current path: {path}</p>
+      <p>User ID: {params.id}</p>
+      <p>Search: {query.q}</p>
       <button onClick={() => navigate("/home")}>Go Home</button>
     </div>
   );
 }
 ```
 
-**Navigate Options:**
+---
+
+### useNavigate()
+
+Hook for programmatic navigation.
+
+**Returns:** `NavigateFunction`
 
 ```typescript
+type NavigateFunction = {
+  (to: string, options?: NavigateOptions): void;
+  (delta: number): void; // History navigation
+};
+
 interface NavigateOptions {
-  replace?: boolean; // Replace history entry instead of push
-  state?: any; // State to pass with navigation
+  replace?: boolean; // Replace history entry
+  state?: any; // Navigation state
 }
 ```
 
-**Example with options:**
+**Example:**
 
 ```tsx
-// Replace current history entry
-navigate("/login", { replace: true });
+import { useNavigate } from "router-kit";
 
-// Pass state data
-navigate("/dashboard", {
-  state: { from: "/login" },
-});
+function LoginForm() {
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const success = await login(credentials);
+
+    if (success) {
+      // Navigate forward
+      navigate("/dashboard");
+
+      // Replace current entry
+      navigate("/dashboard", { replace: true });
+
+      // With state
+      navigate("/dashboard", {
+        state: { from: "/login" },
+      });
+
+      // Go back
+      navigate(-1);
+
+      // Go forward
+      navigate(1);
+    }
+  };
+
+  return <form onSubmit={handleSubmit}>...</form>;
+}
 ```
 
 ---
 
 ### useParams()
 
-Hook to extract dynamic route parameters.
+Hook to extract dynamic route parameters with TypeScript generics support.
 
-**Returns:** `{ [key: string]: string }` - Object with parameter key-value pairs
+**Signature:**
+
+```typescript
+function useParams<
+  T extends Record<string, string> = Record<string, string>
+>(): T;
+```
+
+**Returns:** Object with parameter key-value pairs (memoized)
 
 **Example:**
 
 ```tsx
 import { useParams } from "router-kit";
 
-// Route: /users/:id
-// URL: /users/123
+// Route: /users/:id/posts/:postId
+// URL: /users/123/posts/456
 
-function UserProfile() {
+// Basic usage
+function UserPost() {
   const params = useParams();
-
   console.log(params.id); // "123"
-
-  return <div>User ID: {params.id}</div>;
+  console.log(params.postId); // "456"
+  return <div>...</div>;
 }
-```
 
-**Multiple Parameters:**
+// With TypeScript generics
+interface PostParams {
+  id: string;
+  postId: string;
+}
 
-```tsx
-// Route: /posts/:category/:id
-// URL: /posts/tech/456
-
-function PostDetail() {
-  const { category, id } = useParams();
-
+function UserPostTyped() {
+  const { id, postId } = useParams<PostParams>();
+  // id and postId are typed as string
   return (
     <div>
-      <p>Category: {category}</p> {/* "tech" */}
-      <p>Post ID: {id}</p> {/* "456" */}
+      User {id}, Post {postId}
     </div>
   );
 }
@@ -409,25 +799,24 @@ function PostDetail() {
 
 ---
 
-### useQuery()
+### useQuery() / useSearchParams()
 
-Hook to parse URL query parameters.
+Hooks to access and modify URL query parameters reactively.
 
-**Returns:** `{ [key: string]: string }` - Object with query parameter key-value pairs
+**useQuery Returns:** `Record<string, string>` (reactive, memoized)
+
+**useSearchParams Returns:** `[URLSearchParams, (params) => void]`
 
 **Example:**
 
 ```tsx
-import { useQuery } from "router-kit";
+import { useQuery, useSearchParams } from "router-kit";
 
 // URL: /search?q=react&sort=recent&page=2
 
-function SearchResults() {
+// Read-only access
+function SearchDisplay() {
   const query = useQuery();
-
-  console.log(query.q); // "react"
-  console.log(query.sort); // "recent"
-  console.log(query.page); // "2"
 
   return (
     <div>
@@ -437,26 +826,53 @@ function SearchResults() {
     </div>
   );
 }
+
+// Read and write access
+function SearchFilters() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const updateSort = (sort: string) => {
+    setSearchParams({
+      ...Object.fromEntries(searchParams),
+      sort,
+    });
+  };
+
+  const nextPage = () => {
+    const current = Number(searchParams.get("page") || 1);
+    setSearchParams({
+      ...Object.fromEntries(searchParams),
+      page: String(current + 1),
+    });
+  };
+
+  return (
+    <div>
+      <select onChange={(e) => updateSort(e.target.value)}>
+        <option value="recent">Recent</option>
+        <option value="popular">Popular</option>
+      </select>
+      <button onClick={nextPage}>Next Page</button>
+    </div>
+  );
+}
 ```
-
-**Server-Side Rendering:**
-
-Returns an empty object `{}` when `window` is undefined (SSR-safe).
 
 ---
 
 ### useLocation()
 
-Hook to access the current location details.
+Hook to access the current location details reactively using `useSyncExternalStore`.
 
 **Returns:**
 
 ```typescript
-{
+interface Location {
   pathname: string; // Current path
-  search: string; // Query string (including "?")
-  hash: string; // Hash fragment (including "#")
-  state: any; // State passed via navigate()
+  search: string; // Query string (with "?")
+  hash: string; // Hash fragment (with "#")
+  state: any; // Navigation state
+  key: string; // Unique location key
 }
 ```
 
@@ -473,22 +889,158 @@ function LocationInfo() {
       <p>Path: {location.pathname}</p>
       <p>Search: {location.search}</p>
       <p>Hash: {location.hash}</p>
+      <p>Key: {location.key}</p>
       <pre>{JSON.stringify(location.state, null, 2)}</pre>
     </div>
   );
 }
 ```
 
-**URL:** `/products?category=electronics#reviews`
+---
 
-**Output:**
+### useMatches()
 
-```json
-{
-  "pathname": "/products",
-  "search": "?category=electronics",
-  "hash": "#reviews",
-  "state": null
+Hook to access the matched route hierarchy.
+
+**Returns:** `RouteMatch[]`
+
+```typescript
+interface RouteMatch {
+  pathname: string; // Matched path
+  params: Record<string, string>; // Route params
+  route: Route; // Route configuration
+  data: any; // Loader data
+}
+```
+
+**Example:**
+
+```tsx
+import { useMatches } from "router-kit";
+
+// URL: /dashboard/users/123
+// Matches: [dashboard, users, :id]
+
+function Breadcrumbs() {
+  const matches = useMatches();
+
+  return (
+    <nav>
+      {matches.map((match, i) => (
+        <span key={match.pathname}>
+          {i > 0 && " > "}
+          <Link to={match.pathname}>
+            {match.route.meta?.title || match.pathname}
+          </Link>
+        </span>
+      ))}
+    </nav>
+  );
+}
+```
+
+---
+
+### useLoaderData()
+
+Hook to access data returned by the route's loader function.
+
+**Signature:**
+
+```typescript
+function useLoaderData<T = any>(): T;
+```
+
+**Example:**
+
+```tsx
+// Route configuration
+const routes = createRouter([
+  {
+    path: "users/:id",
+    component: <UserProfile />,
+    loader: async ({ params }) => {
+      const response = await fetch(`/api/users/${params.id}`);
+      if (!response.ok) throw new Error("User not found");
+      return response.json();
+    },
+  },
+]);
+
+// Component
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+function UserProfile() {
+  const user = useLoaderData<User>();
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+    </div>
+  );
+}
+```
+
+---
+
+### useBlocker()
+
+Hook to block navigation with custom logic.
+
+**Signature:**
+
+```typescript
+function useBlocker(blocker: BlockerFunction | boolean): Blocker;
+
+type BlockerFunction = (args: {
+  currentLocation: Location;
+  nextLocation: Location;
+  action: "push" | "replace" | "pop";
+}) => boolean;
+
+interface Blocker {
+  state: "blocked" | "unblocked" | "proceeding";
+  proceed: () => void;
+  reset: () => void;
+  location?: Location;
+}
+```
+
+**Example:**
+
+```tsx
+import { useBlocker } from "router-kit";
+
+function FormWithUnsavedChanges() {
+  const [isDirty, setIsDirty] = useState(false);
+
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  return (
+    <div>
+      <form onChange={() => setIsDirty(true)}>
+        <input name="title" />
+        <textarea name="content" />
+        <button type="submit">Save</button>
+      </form>
+
+      {blocker.state === "blocked" && (
+        <dialog open>
+          <p>You have unsaved changes. Leave anyway?</p>
+          <button onClick={blocker.proceed}>Leave</button>
+          <button onClick={blocker.reset}>Stay</button>
+        </dialog>
+      )}
+    </div>
+  );
 }
 ```
 
@@ -501,26 +1053,18 @@ Hook for conditional component rendering based on route parameters.
 **Signature:**
 
 ```typescript
-useDynamicComponents(
-  dynamicComponentsObject: Record<string, JSX.Element>,
-  variationParam: string
-): JSX.Element
+function useDynamicComponents(
+  components: Record<string, JSX.Element>,
+  paramName: string
+): JSX.Element;
 ```
-
-**Parameters:**
-
-- `dynamicComponentsObject`: Object mapping parameter values to components
-- `variationParam`: The route parameter name to check
-
-**Returns:** `JSX.Element` - The matched component
 
 **Example:**
 
 ```tsx
-import { useDynamicComponents, useParams } from "router-kit";
+import { useDynamicComponents } from "router-kit";
 
 // Route: /dashboard/:view
-// URL: /dashboard/analytics
 
 const views = {
   analytics: <AnalyticsView />,
@@ -534,329 +1078,295 @@ function Dashboard() {
 }
 ```
 
-**Error Handling:**
-
-The hook throws detailed errors if:
-
-- Parameter is not defined
-- Parameter is not a string
-- Parameter is an empty string
-- Component variation is not found
-
 ---
 
 ## Advanced Usage
 
-### Nested Routes
+### Route Guards
 
-Create hierarchical route structures:
+Route guards allow you to protect routes with authentication and authorization logic.
+
+**Guard Function Signature:**
+
+```typescript
+type RouteGuard = (
+  context: RouteGuardContext
+) => boolean | { redirect: string } | Promise<boolean | { redirect: string }>;
+
+interface RouteGuardContext {
+  params: Record<string, string>;
+  query: Record<string, string>;
+  location: Location;
+}
+```
+
+**Example: Authentication Guard**
 
 ```tsx
+// guards/authGuard.ts
+export const authGuard: RouteGuard = async ({ location }) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return { redirect: `/login?returnTo=${location.pathname}` };
+  }
+
+  // Verify token with server
+  const isValid = await verifyToken(token);
+  return isValid || { redirect: "/login" };
+};
+
+// guards/roleGuard.ts
+export const adminGuard: RouteGuard = async () => {
+  const user = await getCurrentUser();
+  return user?.role === "admin" || { redirect: "/unauthorized" };
+};
+
+// Usage
 const routes = createRouter([
+  { path: "/", component: <Home /> },
+  { path: "login", component: <Login /> },
   {
     path: "dashboard",
-    component: <DashboardLayout />,
+    component: <Dashboard />,
+    guard: authGuard,
     children: [
       { path: "", component: <DashboardHome /> },
-      { path: "analytics", component: <Analytics /> },
-      { path: "reports", component: <Reports /> },
       {
-        path: "settings",
-        component: <Settings />,
-        children: [
-          { path: "profile", component: <ProfileSettings /> },
-          { path: "security", component: <SecuritySettings /> },
-        ],
+        path: "admin",
+        component: <AdminPanel />,
+        guard: adminGuard, // Nested guard
       },
     ],
   },
 ]);
 ```
 
-**Resulting URLs:**
-
-- `/dashboard` → `<DashboardHome />`
-- `/dashboard/analytics` → `<Analytics />`
-- `/dashboard/settings/profile` → `<ProfileSettings />`
-
 ---
 
-### Multiple Path Aliases
+### Data Loading
 
-Define multiple paths for the same route:
+Load data before rendering routes using loader functions.
 
-```tsx
-const routes = createRouter([
-  {
-    path: ["about", "about-us", "info"],
-    component: <About />,
-  },
-  {
-    path: ["contact", "get-in-touch"],
-    component: <Contact />,
-  },
-]);
-```
+**Loader Function Signature:**
 
-All these URLs render the same component:
+```typescript
+type RouteLoader<T = any> = (context: RouteLoaderContext) => T | Promise<T>;
 
-- `/about` → `<About />`
-- `/about-us` → `<About />`
-- `/info` → `<About />`
-
----
-
-### Custom 404 Pages
-
-Define a custom 404 page by using the path `"/404"` or `"404"`:
-
-```tsx
-const NotFound = () => (
-  <div className="error-page">
-    <h1>404</h1>
-    <p>Page not found</p>
-    <Link to="/">Go Home</Link>
-  </div>
-);
-
-const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: "/404", component: <NotFound /> },
-]);
-```
-
-Router-Kit automatically displays this component when no route matches.
-
-**Default 404 Page:**
-
-If you don't provide a custom 404 route, Router-Kit uses a built-in styled 404 page with:
-
-- Large "404" heading
-- "Page Not Found" message
-- "Go Back Home" button
-- Professional styling
-
----
-
-### Programmatic Navigation
-
-Navigate from anywhere using the `useRouter` hook:
-
-```tsx
-import { useRouter } from "router-kit";
-
-function LoginForm() {
-  const { navigate } = useRouter();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const success = await login(credentials);
-
-    if (success) {
-      // Redirect to dashboard
-      navigate("/dashboard");
-
-      // Or replace history entry
-      navigate("/dashboard", { replace: true });
-
-      // Or pass state
-      navigate("/dashboard", {
-        state: { from: "/login", user: userData },
-      });
-    }
-  };
-
-  return <form onSubmit={handleSubmit}>...</form>;
+interface RouteLoaderContext {
+  params: Record<string, string>;
+  query: Record<string, string>;
+  signal: AbortSignal; // For cancellation
 }
 ```
 
----
-
-### Protected Routes
-
-Create protected routes with authentication:
+**Example: Data Loader**
 
 ```tsx
-import { useRouter } from "router-kit";
-import { useAuth } from "./auth";
+// loaders/userLoader.ts
+export const userLoader: RouteLoader<User> = async ({ params, signal }) => {
+  const response = await fetch(`/api/users/${params.id}`, { signal });
 
-function ProtectedRoute({ children }) {
-  const { navigate } = useRouter();
-  const { isAuthenticated } = useAuth();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/login", { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
-
-  if (!isAuthenticated) {
-    return <div>Loading...</div>;
+  if (!response.ok) {
+    throw new Error("User not found");
   }
 
-  return children;
-}
+  return response.json();
+};
 
-// Usage
+// Route configuration
 const routes = createRouter([
-  { path: "/login", component: <Login /> },
   {
-    path: "dashboard",
-    component: (
-      <ProtectedRoute>
-        <Dashboard />
-      </ProtectedRoute>
-    ),
+    path: "users/:id",
+    component: <UserProfile />,
+    loader: userLoader,
+    errorElement: <UserError />,
   },
 ]);
-```
 
----
+// Component
+function UserProfile() {
+  const user = useLoaderData<User>();
 
-### Layout Components
-
-Share layouts across multiple routes:
-
-```tsx
-function MainLayout({ children }) {
   return (
-    <div className="layout">
-      <Header />
-      <aside>
-        <Sidebar />
-      </aside>
-      <main>{children}</main>
-      <Footer />
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
     </div>
   );
 }
 
-const routes = createRouter([
-  {
-    path: "",
-    component: (
-      <MainLayout>
-        <Home />
-      </MainLayout>
-    ),
-  },
-  {
-    path: "about",
-    component: (
-      <MainLayout>
-        <About />
-      </MainLayout>
-    ),
-  },
-  {
-    path: "admin",
-    component: (
-      <AdminLayout>
-        <AdminPanel />
-      </AdminLayout>
-    ),
-  },
-]);
+function UserError() {
+  return <div>Failed to load user data</div>;
+}
+```
+
+**Parallel Data Loading:**
+
+```tsx
+// Load multiple resources in parallel
+const dashboardLoader: RouteLoader = async ({ signal }) => {
+  const [stats, notifications, activities] = await Promise.all([
+    fetch("/api/stats", { signal }).then((r) => r.json()),
+    fetch("/api/notifications", { signal }).then((r) => r.json()),
+    fetch("/api/activities", { signal }).then((r) => r.json()),
+  ]);
+
+  return { stats, notifications, activities };
+};
 ```
 
 ---
 
-### Route Guards
+### Navigation Blocking
 
-Implement route guards for authorization:
+Block navigation when users have unsaved changes.
+
+**Example: Form Protection**
 
 ```tsx
-function AdminGuard({ children, requiredRole }) {
-  const { navigate } = useRouter();
-  const { user } = useAuth();
+import { useBlocker, useNavigate } from "router-kit";
 
-  useEffect(() => {
-    if (!user || user.role !== requiredRole) {
-      navigate("/unauthorized", { replace: true });
-    }
-  }, [user, requiredRole, navigate]);
+function EditPostForm() {
+  const [formData, setFormData] = useState(initialData);
+  const [isDirty, setIsDirty] = useState(false);
+  const navigate = useNavigate();
 
-  return user?.role === requiredRole ? children : null;
+  // Block navigation when form is dirty
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setIsDirty(true);
+  };
+
+  const handleSave = async () => {
+    await savePost(formData);
+    setIsDirty(false);
+    navigate("/posts");
+  };
+
+  return (
+    <form>
+      <input name="title" value={formData.title} onChange={handleChange} />
+      <textarea
+        name="content"
+        value={formData.content}
+        onChange={handleChange}
+      />
+      <button type="button" onClick={handleSave}>
+        Save
+      </button>
+
+      {/* Confirmation Dialog */}
+      {blocker.state === "blocked" && (
+        <dialog open className="blocker-dialog">
+          <h3>Unsaved Changes</h3>
+          <p>You have unsaved changes. Are you sure you want to leave?</p>
+          <div className="dialog-actions">
+            <button onClick={blocker.reset}>Stay on Page</button>
+            <button onClick={blocker.proceed}>Leave Without Saving</button>
+          </div>
+        </dialog>
+      )}
+    </form>
+  );
 }
-
-// Usage
-const routes = createRouter([
-  {
-    path: "admin",
-    component: (
-      <AdminGuard requiredRole="admin">
-        <AdminDashboard />
-      </AdminGuard>
-    ),
-  },
-]);
 ```
 
 ---
 
 ### Scroll Restoration
 
-Restore scroll position on navigation:
+Router-Kit provides automatic scroll position management.
+
+**Configuration:**
 
 ```tsx
-import { useEffect } from "react";
-import { useLocation } from "router-kit";
+<RouterProvider
+  routes={routes}
+  scrollRestoration="auto" // or "manual"
+/>
+```
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
+**Scroll Modes:**
+
+- `"auto"`: Automatically restores scroll position on back/forward
+- `"manual"`: You control scroll behavior completely
+
+**Manual Scroll Control:**
+
+```tsx
+import { useLocation, useNavigate } from "router-kit";
+
+function ScrollManager() {
+  const location = useLocation();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+    // Scroll to top on route change
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [location.pathname]);
 
   return null;
 }
 
-function App() {
-  return (
-    <RouterProvider routes={routes}>
-      <ScrollToTop />
-      {/* Rest of your app */}
-    </RouterProvider>
-  );
+// Scroll to element on hash change
+function HashScroller() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      const element = document.getElementById(location.hash.slice(1));
+      element?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [location.hash]);
+
+  return null;
 }
 ```
 
 ---
 
-### Navigation State
+### Lazy Loading
 
-Pass and access state during navigation:
+Code split your routes with React.lazy for better performance.
+
+**Example: Lazy Routes**
 
 ```tsx
-// Component A - Sending state
-function ProductList() {
-  const { navigate } = useRouter();
+import { lazy, Suspense } from "react";
 
-  const handleViewProduct = (product) => {
-    navigate(`/products/${product.id}`, {
-      state: {
-        productName: product.name,
-        from: "/products",
-      },
-    });
-  };
+// Define lazy components
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 
-  return <button onClick={() => handleViewProduct(product)}>View</button>;
-}
+// Route configuration with lazy loading
+const routes = createRouter([
+  { path: "/", component: <Home /> },
+  {
+    path: "dashboard",
+    lazy: () => import("./pages/Dashboard"),
+    // Or use component with Suspense wrapper
+    component: (
+      <Suspense fallback={<Loading />}>
+        <Dashboard />
+      </Suspense>
+    ),
+  },
+  {
+    path: "admin",
+    lazy: () => import("./pages/AdminPanel"),
+    guard: adminGuard,
+  },
+]);
 
-// Component B - Receiving state
-function ProductDetail() {
-  const { state } = useLocation();
-  const params = useParams();
-
-  return (
-    <div>
-      <h1>{state?.productName || "Product"}</h1>
-      <p>ID: {params.id}</p>
-      {state?.from && <Link to={state.from}>Go Back</Link>}
-    </div>
-  );
+// With global fallback
+function App() {
+  return <RouterProvider routes={routes} fallback={<FullPageLoader />} />;
 }
 ```
 
@@ -890,6 +1400,35 @@ enum RouterErrorCode {
   COMPONENT_NOT_FOUND = "COMPONENT_NOT_FOUND",
   NAVIGATION_ABORTED = "NAVIGATION_ABORTED",
   INVALID_ROUTE = "INVALID_ROUTE",
+  LOADER_ERROR = "LOADER_ERROR",
+  GUARD_ERROR = "GUARD_ERROR",
+}
+```
+
+### Route-Level Error Handling
+
+Use `errorElement` to handle errors per route:
+
+```tsx
+const routes = createRouter([
+  {
+    path: "users/:id",
+    component: <UserProfile />,
+    loader: userLoader,
+    errorElement: <UserError />,
+  },
+]);
+
+function UserError() {
+  const error = useRouteError();
+
+  return (
+    <div className="error-page">
+      <h1>Error Loading User</h1>
+      <p>{error.message}</p>
+      <Link to="/users">Back to Users</Link>
+    </div>
+  );
 }
 ```
 
@@ -907,10 +1446,8 @@ try {
 
     switch (error.code) {
       case RouterErrorCode.COMPONENT_NOT_FOUND:
-        // Show fallback component
         return <DefaultView />;
       case RouterErrorCode.PARAM_NOT_DEFINED:
-        // Redirect to error page
         navigate("/error");
         break;
     }
@@ -920,124 +1457,115 @@ try {
 
 ### Common Errors
 
-**1. Router Not Initialized**
-
-Thrown when hooks/components are used outside `RouterProvider`:
-
-```tsx
-// ❌ Wrong
-function App() {
-  const { navigate } = useRouter(); // Error!
-  return <RouterProvider routes={routes} />;
-}
-
-// ✅ Correct
-function Navigation() {
-  const { navigate } = useRouter(); // OK
-  return <nav>...</nav>;
-}
-
-function App() {
-  return (
-    <RouterProvider routes={routes}>
-      <Navigation />
-    </RouterProvider>
-  );
-}
-```
-
-**2. Component Not Found**
-
-Thrown when a dynamic component variation doesn't exist:
-
-```tsx
-const views = {
-  analytics: <Analytics />,
-  reports: <Reports />,
-};
-
-// URL: /dashboard/settings
-// Error: Component not found for variation "settings"
-useDynamicComponents(views, "view");
-```
-
-**3. Parameter Not Defined**
-
-Thrown when accessing undefined route parameters:
-
-```tsx
-// Route: /users/:id
-// URL: /users/123
-
-function UserProfile() {
-  const params = useParams();
-  console.log(params.userId); // undefined
-  // Using useDynamicComponents with "userId" will throw error
-}
-```
+1. **Router Not Initialized**: Hooks used outside `RouterProvider`
+2. **Component Not Found**: Dynamic component variation doesn't exist
+3. **Parameter Not Defined**: Accessing undefined route parameters
+4. **Loader Error**: Route loader function threw an error
+5. **Guard Error**: Route guard function threw an error
 
 ---
 
 ## TypeScript Support
 
-Router-Kit is written in TypeScript and provides full type definitions.
+Router-Kit v2.0 provides comprehensive TypeScript support with 25+ type definitions.
 
 ### Type Imports
 
 ```tsx
 import type {
+  // Core Types
   Route,
+  Routes,
+  RouteMatch,
+
+  // Context Types
   RouterContextType,
-  NavigateOptions,
   Location,
-  RouterKitError,
+
+  // Navigation Types
+  NavigateFunction,
+  NavigateOptions,
+
+  // Guard & Loader Types
+  RouteGuard,
+  RouteGuardContext,
+  RouteLoader,
+  RouteLoaderContext,
+
+  // Blocker Types
+  Blocker,
+  BlockerFunction,
+
+  // Component Types
+  LinkProps,
+  NavLinkProps,
+  RouteMeta,
+
+  // Utility Types
   DynamicComponents,
   GetComponent,
-  Routes,
 } from "router-kit";
 ```
 
-### Typed Routes
+### Typed Params
 
 ```tsx
-import type { Route } from "router-kit";
+import { useParams } from "router-kit";
+
+interface UserParams {
+  id: string;
+  tab?: string;
+}
+
+function UserProfile() {
+  const { id, tab } = useParams<UserParams>();
+  // id is typed as string
+  // tab is typed as string | undefined
+}
+```
+
+### Typed Loader Data
+
+```tsx
+import { useLoaderData } from "router-kit";
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+function UserProfile() {
+  const user = useLoaderData<User>();
+  // user.name is typed as string
+}
+```
+
+### Typed Route Configuration
+
+```tsx
+import type { Route, RouteGuard, RouteLoader } from "router-kit";
+
+const authGuard: RouteGuard = async ({ location }) => {
+  // Fully typed context
+  return true;
+};
+
+const userLoader: RouteLoader<User> = async ({ params, signal }) => {
+  // params is typed as Record<string, string>
+  // signal is typed as AbortSignal
+  return fetchUser(params.id, signal);
+};
 
 const routes: Route[] = [
-  { path: "/", component: <Home /> },
-  { path: "about", component: <About /> },
+  {
+    path: "users/:id",
+    component: <UserProfile />,
+    guard: authGuard,
+    loader: userLoader,
+    meta: { title: "User Profile" },
+  },
 ];
-```
-
-### Typed Context
-
-```tsx
-import type { RouterContextType } from "router-kit";
-import { useRouter } from "router-kit";
-
-function MyComponent() {
-  const router: RouterContextType = useRouter();
-
-  router.navigate("/home");
-}
-```
-
-### Custom Type Extensions
-
-```tsx
-// Extend Location type with custom state
-interface CustomLocationState {
-  from?: string;
-  user?: { id: string; name: string };
-}
-
-function MyComponent() {
-  const location = useLocation();
-  const state = location.state as CustomLocationState;
-
-  if (state?.from) {
-    console.log("Came from:", state.from);
-  }
-}
 ```
 
 ---
@@ -1046,22 +1574,40 @@ function MyComponent() {
 
 ### 1. Route Organization
 
-Keep routes in a separate file:
+Organize routes in a dedicated file with guards and loaders:
 
 ```tsx
-// routes.tsx
+// routes/index.tsx
 import { createRouter } from "router-kit";
-import { Home, About, Contact, UserProfile } from "./pages";
+import { authGuard, adminGuard } from "./guards";
+import { userLoader, postsLoader } from "./loaders";
+import * as Pages from "../pages";
 
 export const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: "about", component: <About /> },
-  { path: "contact", component: <Contact /> },
-  { path: "users/:id", component: <UserProfile /> },
-  { path: "/404", component: <NotFound /> },
+  {
+    path: "/",
+    component: <Pages.Home />,
+    meta: { title: "Home" },
+  },
+  {
+    path: "dashboard",
+    component: <Pages.Dashboard />,
+    guard: authGuard,
+    children: [
+      { path: "", component: <Pages.DashboardHome /> },
+      { path: "admin", component: <Pages.Admin />, guard: adminGuard },
+    ],
+  },
+  { path: "/404", component: <Pages.NotFound /> },
 ]);
 
 // App.tsx
+import { RouterProvider } from "router-kit";
+import { routes } from "./routes";
+
+function App() {
+  return <RouterProvider routes={routes} />;
+}
 import { RouterProvider } from "router-kit";
 import { routes } from "./routes";
 
@@ -1261,20 +1807,28 @@ function App() {
 }
 ```
 
-**Key Differences:**
+**Key Differences (v2.0):**
 
-| React Router              | Router-Kit                                  |
-| ------------------------- | ------------------------------------------- |
-| `useNavigate()`           | `useRouter().navigate`                      |
-| `<Outlet />`              | Not needed (components render directly)     |
-| `element={<Component />}` | `component={<Component />}`                 |
-| `<Route path="*" />`      | `{ path: "/404", component: <NotFound /> }` |
+| Feature       | React Router v6            | Router-Kit v2.0             |
+| ------------- | -------------------------- | --------------------------- |
+| Navigation    | `useNavigate()`            | `useNavigate()` ✅          |
+| Params        | `useParams()`              | `useParams()` ✅            |
+| Location      | `useLocation()`            | `useLocation()` ✅          |
+| Search Params | `useSearchParams()`        | `useSearchParams()` ✅      |
+| Loader Data   | `useLoaderData()`          | `useLoaderData()` ✅        |
+| Route Blocker | `useBlocker()`             | `useBlocker()` ✅           |
+| Route Element | `element={<Comp />}`       | `component={<Comp />}`      |
+| Catch-all     | `path="*"`                 | `path="/404"`               |
+| Basename      | `<BrowserRouter basename>` | `<RouterProvider basename>` |
+| Lazy Loading  | `lazy()`                   | `lazy` prop ✅              |
+| Route Guards  | Custom via loader          | `guard` prop ✅             |
+| Nested Routes | `<Outlet />`               | Direct children ✅          |
 
 ---
 
 ## Examples
 
-### Complete E-commerce App
+### Complete E-commerce App with Guards & Loaders
 
 ```tsx
 import {
@@ -1282,8 +1836,22 @@ import {
   RouterProvider,
   NavLink,
   useParams,
-  useRouter,
+  useNavigate,
+  useLoaderData,
+  useBlocker,
 } from "router-kit";
+
+// Guards
+const authGuard = async () => {
+  const token = localStorage.getItem("token");
+  return token ? true : { redirect: "/login" };
+};
+
+// Loaders
+const productLoader = async ({ params }) => {
+  const res = await fetch(`/api/products/${params.id}`);
+  return res.json();
+};
 
 // Pages
 const Home = () => (
@@ -1293,85 +1861,111 @@ const Home = () => (
   </div>
 );
 
-const ProductList = () => {
-  const products = [
-    { id: 1, name: "Product 1" },
-    { id: 2, name: "Product 2" },
-  ];
-
-  return (
-    <div>
-      <h1>Products</h1>
-      {products.map((p) => (
-        <NavLink key={p.id} to={`/products/${p.id}`}>
-          {p.name}
-        </NavLink>
-      ))}
-    </div>
-  );
-};
-
 const ProductDetail = () => {
   const { id } = useParams();
-  const { navigate } = useRouter();
+  const product = useLoaderData();
+  const navigate = useNavigate();
 
-  const addToCart = () => {
-    // Add logic
+  const addToCart = async () => {
+    await fetch("/api/cart", {
+      method: "POST",
+      body: JSON.stringify({ productId: id }),
+    });
     navigate("/cart");
   };
 
   return (
     <div>
-      <h1>Product {id}</h1>
+      <h1>{product.name}</h1>
+      <p>${product.price}</p>
       <button onClick={addToCart}>Add to Cart</button>
     </div>
   );
 };
 
-const Cart = () => (
-  <div>
-    <h1>Shopping Cart</h1>
-  </div>
-);
+const Checkout = () => {
+  const [isDirty, setIsDirty] = useState(false);
+  const blocker = useBlocker(isDirty);
+
+  return (
+    <form onChange={() => setIsDirty(true)}>
+      <h1>Checkout</h1>
+      {blocker.state === "blocked" && (
+        <dialog open>
+          <p>Abandon checkout?</p>
+          <button onClick={blocker.proceed}>Leave</button>
+          <button onClick={blocker.reset}>Stay</button>
+        </dialog>
+      )}
+    </form>
+  );
+};
 
 // Routes
 const routes = createRouter([
-  { path: "/", component: <Home /> },
-  { path: "products", component: <ProductList /> },
-  { path: "products/:id", component: <ProductDetail /> },
-  { path: "cart", component: <Cart /> },
-  { path: "/404", component: <div>404 Not Found</div> },
+  {
+    path: "/",
+    component: <Home />,
+    meta: { title: "Home - Store" },
+  },
+  {
+    path: "products/:id",
+    component: <ProductDetail />,
+    loader: productLoader,
+  },
+  {
+    path: "checkout",
+    component: <Checkout />,
+    guard: authGuard,
+  },
+  { path: "/404", component: <NotFound /> },
 ]);
 
 function App() {
-  return <RouterProvider routes={routes} />;
+  return <RouterProvider routes={routes} scrollRestoration="auto" />;
 }
 ```
 
-### Blog with Categories
+### Dashboard with Role-Based Guards
 
 ```tsx
+// Guards
+const authGuard = async () => {
+  const user = await getCurrentUser();
+  return user ? true : { redirect: "/login" };
+};
+
+const adminGuard = async () => {
+  const user = await getCurrentUser();
+  return user?.role === "admin" || { redirect: "/unauthorized" };
+};
+
+// Routes with nested guards
 const routes = createRouter([
-  { path: "/", component: <BlogHome /> },
-  { path: "posts/:category/:slug", component: <BlogPost /> },
-  { path: "author/:username", component: <AuthorProfile /> },
+  { path: "/", component: <Home /> },
+  { path: "login", component: <Login /> },
+  {
+    path: "dashboard",
+    component: <DashboardLayout />,
+    guard: authGuard,
+    children: [
+      { path: "", component: <DashboardHome />, index: true },
+      { path: "profile", component: <Profile />, loader: profileLoader },
+      {
+        path: "admin",
+        component: <AdminPanel />,
+        guard: adminGuard,
+        children: [
+          { path: "users", component: <ManageUsers /> },
+          { path: "settings", component: <AdminSettings /> },
+        ],
+      },
+    ],
+  },
 ]);
-
-function BlogPost() {
-  const { category, slug } = useParams();
-  const query = useQuery();
-
-  return (
-    <article>
-      <p>Category: {category}</p>
-      <p>Slug: {slug}</p>
-      {query.ref && <p>Referred from: {query.ref}</p>}
-    </article>
-  );
-}
 ```
 
-### Dashboard with Tabs
+### Blog with Dynamic Components
 
 ```tsx
 const views = {
@@ -1387,7 +1981,9 @@ function Dashboard() {
   return (
     <div className="dashboard">
       <nav>
-        <NavLink to="/dashboard/overview">Overview</NavLink>
+        <NavLink to="/dashboard/overview" end>
+          Overview
+        </NavLink>
         <NavLink to="/dashboard/analytics">Analytics</NavLink>
         <NavLink to="/dashboard/reports">Reports</NavLink>
         <NavLink to="/dashboard/settings">Settings</NavLink>
@@ -1410,29 +2006,14 @@ Contributions are welcome! Here's how you can help:
 
 ### Development Setup
 
-1. Clone the repository:
+Clone and set up the project:
 
 ```bash
 git clone https://github.com/Mohammed-Ben-Cheikh/router-kit.git
 cd router-kit
-```
-
-2. Install dependencies:
-
-```bash
 npm install
-```
-
-3. Build the project:
-
-```bash
 npm run build
-```
-
-4. Watch mode for development:
-
-```bash
-npm run build:watch
+npm run build:watch  # For development
 ```
 
 ### Scripts
@@ -1445,22 +2026,12 @@ npm run build:watch
 
 ### Contribution Guidelines
 
-1. **Fork the repository** and create a feature branch
-2. **Write clear commit messages** following conventional commits
-3. **Add tests** for new features
-4. **Update documentation** for API changes
-5. **Ensure TypeScript types** are correct
-6. **Test thoroughly** before submitting PR
-
-### Feature Requests
-
-- Hash-based routing (`#/path`)
-- Regex route matching
-- Wildcard routes
-- Route middleware
-- Lazy loading support
-- Animated transitions
-- More comprehensive test suite
+1. Fork the repository and create a feature branch
+2. Write clear commit messages following conventional commits
+3. Add tests for new features
+4. Update documentation for API changes
+5. Ensure TypeScript types are correct
+6. Test thoroughly before submitting PR
 
 ---
 
@@ -1475,9 +2046,8 @@ See [LICENSE](../LICENSE) file for details.
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/Mohammed-Ben-Cheikh/router-kit/issues)
-- **Email:** mohammed.bencheikh.dev@gmail.com
 - **Website:** [mohammedbencheikh.com](https://mohammedbencheikh.com/)
 
 ---
 
-**Made with ❤️ by Mohammed Ben Cheikh**
+Made with ❤️ by Mohammed Ben Cheikh

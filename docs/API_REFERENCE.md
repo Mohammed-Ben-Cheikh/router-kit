@@ -1,6 +1,6 @@
 # Router-Kit API Reference
 
-Complete API documentation for Router-Kit v1.3.1
+Complete API documentation for Router-Kit v2.0.0
 
 ---
 
@@ -11,7 +11,6 @@ Complete API documentation for Router-Kit v1.3.1
 - [Hooks](#hooks)
 - [Types](#types)
 - [Error System](#error-system)
-- [Utilities](#utilities)
 
 ---
 
@@ -37,12 +36,22 @@ function createRouter(routes: Route[]): Route[];
 
 `Route[]` - Normalized array of routes with processed paths and children
 
-#### Behavior
+#### Route Configuration
 
-1. **Path Normalization**: Removes leading slashes from all paths
-2. **Multiple Paths**: Joins array of paths with `|` delimiter
-3. **Recursive Processing**: Processes children routes recursively
-4. **Path Preservation**: Maintains original component and children references
+```typescript
+interface Route {
+  path: string | string[]; // Path pattern(s)
+  component: JSX.Element; // Component to render
+  children?: Route[]; // Nested routes
+  index?: boolean; // Index route flag
+  lazy?: LazyExoticComponent<ComponentType>; // Lazy-loaded component
+  loader?: RouteLoader; // Data fetching function
+  errorElement?: JSX.Element; // Error boundary element
+  redirectTo?: string; // Redirect destination
+  guard?: RouteGuard; // Route protection function
+  meta?: RouteMeta; // Route metadata
+}
+```
 
 #### Examples
 
@@ -57,16 +66,60 @@ const routes = createRouter([
 ]);
 ```
 
-**Multiple Path Aliases:**
+**With Route Guards:**
 
 ```typescript
 const routes = createRouter([
   {
-    path: ["about", "about-us", "/info"],
-    component: <About />,
+    path: "dashboard",
+    component: <Dashboard />,
+    guard: ({ pathname }) => isAuthenticated() || "/login",
+  },
+  {
+    path: "admin",
+    component: <Admin />,
+    guard: () => isAdmin() || "/unauthorized",
   },
 ]);
-// Result: path becomes "about|about-us|info"
+```
+
+**With Loaders:**
+
+```typescript
+const routes = createRouter([
+  {
+    path: "user/:id",
+    component: <UserProfile />,
+    loader: async ({ params, signal }) => {
+      const response = await fetch(`/api/users/${params.id}`, { signal });
+      return response.json();
+    },
+  },
+]);
+```
+
+**With Metadata:**
+
+```typescript
+const routes = createRouter([
+  {
+    path: "about",
+    component: <About />,
+    meta: {
+      title: "About Us",
+      description: "Learn more about our company",
+    },
+  },
+]);
+```
+
+**With Redirects:**
+
+```typescript
+const routes = createRouter([
+  { path: "old-path", redirectTo: "/new-path" },
+  { path: "new-path", component: <NewPage /> },
+]);
 ```
 
 **Nested Routes:**
@@ -84,21 +137,14 @@ const routes = createRouter([
 ]);
 ```
 
-**With Dynamic Parameters:**
+**Catch-All Routes:**
 
 ```typescript
 const routes = createRouter([
-  { path: "users/:id", component: <UserProfile /> },
-  { path: "posts/:category/:slug", component: <BlogPost /> },
+  { path: "/", component: <Home /> },
+  { path: "*", component: <NotFound /> }, // Matches any unmatched path
 ]);
 ```
-
-#### Notes
-
-- Paths starting with `/` are normalized to remove the leading slash
-- Empty strings are preserved for nested default routes
-- The function does not validate component types
-- Order of routes matters for matching (static before dynamic)
 
 ---
 
@@ -112,32 +158,41 @@ Main routing component that provides routing context and renders matched compone
 
 ```typescript
 interface RouterProviderProps {
-  routes: Route[];
+  routes: Route[]; // Routes from createRouter()
+  basename?: string; // Base path for all routes
+  fallbackElement?: JSX.Element; // Fallback during suspense
 }
 ```
 
-| Prop   | Type    | Required | Description                      |
-| ------ | ------- | -------- | -------------------------------- |
-| routes | Route[] | Yes      | Routes array from createRouter() |
+| Prop            | Type        | Required | Description                      |
+| --------------- | ----------- | -------- | -------------------------------- |
+| routes          | Route[]     | Yes      | Routes array from createRouter() |
+| basename        | string      | No       | Base path prefix for all routes  |
+| fallbackElement | JSX.Element | No       | Suspense fallback element        |
 
 #### Context Value
 
 ```typescript
 interface RouterContextType {
-  path: string;
-  fullPathWithParams: string;
-  navigate: (to: string, options?: NavigateOptions) => void;
+  pathname: string; // Current path
+  pattern: string; // Matched route pattern
+  search: string; // Query string
+  hash: string; // URL hash
+  state: any; // History state
+  params: Record<string, string>; // Route parameters
+  matches: RouteMatch[]; // Route match chain
+  navigate: NavigateFunction; // Navigation function
+  back: () => void; // Go back in history
+  forward: () => void; // Go forward in history
+  isNavigating: boolean; // Navigation in progress
+  loaderData: any; // Data from route loader
+  meta: RouteMeta | null; // Route metadata
+
+  // Legacy aliases
+  path: string; // Alias for pathname
+  fullPathWithParams: string; // Alias for pattern
 }
 ```
-
-#### Behavior
-
-1. **Initial Render**: Matches current URL to routes
-2. **History Patching**: Patches `pushState` and `replaceState`
-3. **Event Listening**: Listens to `popstate` and custom `locationchange` events
-4. **Route Matching**: Prioritizes static routes over dynamic routes
-5. **404 Handling**: Renders custom 404 or default error page
-6. **Context Provision**: Provides routing context to all children
 
 #### Example
 
@@ -150,68 +205,738 @@ const routes = createRouter([
 ]);
 
 function App() {
-  return <RouterProvider routes={routes} />;
+  return <RouterProvider routes={routes} basename="/app" />;
 }
 ```
 
-#### Internal State
+---
 
-- `path`: Current window.location.pathname
-- `fullPathWithParams`: Matched route pattern (e.g., `/users/:id`)
-- Route matching cache for performance
+### Router
 
-#### Error Handling
+Declarative routing component using JSX syntax.
 
-- Validates URL format before navigation
-- Throws `RouterKitError` for invalid routes
-- Logs navigation errors to console
+#### Props
+
+```typescript
+interface RouterProps {
+  children: ReactNode; // Route children as JSX
+  basename?: string; // Base path for all routes
+  fallback?: ReactNode; // Fallback during lazy loading
+}
+```
+
+#### Example
+
+```tsx
+import { Router, Route } from "router-kit";
+
+function App() {
+  return (
+    <Router basename="/app" fallback={<Loading />}>
+      <Route path="/" component={<Home />} />
+      <Route path="/about" component={<About />} />
+      <Route path="/users/:id" component={<UserProfile />} />
+    </Router>
+  );
+}
+```
+
+---
+
+### Route
+
+Declarative route definition component.
+
+#### Props
+
+```typescript
+interface RouteProps {
+  path: string | string[]; // Path pattern(s)
+  component: ReactElement; // Component to render
+  children?: ReactElement<RouteProps>[]; // Nested routes
+  index?: boolean; // Index route flag
+  lazy?: LazyExoticComponent<ComponentType>; // Lazy component
+  loader?: RouteLoader; // Data loader
+  errorElement?: ReactElement; // Error boundary
+  redirectTo?: string; // Redirect path
+  guard?: RouteGuard; // Route guard
+  meta?: RouteMeta; // Metadata
+  caseSensitive?: boolean; // Case-sensitive matching
+}
+```
+
+#### Example
+
+```tsx
+<Route
+  path="/user/:id"
+  component={<UserProfile />}
+  loader={async ({ params }) => fetchUser(params.id)}
+  guard={() => isLoggedIn() || "/login"}
+  meta={{ title: "User Profile" }}
+/>
+```
 
 ---
 
 ### Link
 
-Navigation component that renders an anchor tag with client-side routing.
+Navigation component with client-side routing.
 
 #### Props
 
 ```typescript
 interface LinkProps {
-  to: string;
-  children: ReactNode;
-  className?: string;
+  to: string; // Destination path
+  children: ReactNode; // Link content
+  className?: string; // CSS class
+  replace?: boolean; // Replace history entry
+  state?: any; // Navigation state
+  preventScrollReset?: boolean; // Keep scroll position
+  target?: string; // Link target
+  rel?: string; // Link rel attribute
+  title?: string; // Link title
+  onClick?: (event) => void; // Click handler
 }
 ```
 
-| Prop      | Type      | Required | Default   | Description      |
-| --------- | --------- | -------- | --------- | ---------------- |
-| to        | string    | Yes      | -         | Destination path |
-| children  | ReactNode | Yes      | -         | Link content     |
-| className | string    | No       | undefined | CSS class name   |
-
-#### Behavior
-
-1. Prevents default anchor click behavior
-2. Calls `navigate(to)` from RouterContext
-3. Updates browser history
-4. Triggers component re-render
-
-#### Example
+#### Examples
 
 ```tsx
 import { Link } from "router-kit";
 
-function Navigation() {
+// Basic
+<Link to="/about">About</Link>
+
+// With state
+<Link to="/profile" state={{ from: 'home' }}>Profile</Link>
+
+// Replace history
+<Link to="/login" replace>Login</Link>
+
+// External link (automatic handling)
+<Link to="https://example.com" target="_blank">External</Link>
+
+// Custom click handler
+<Link to="/page" onClick={(e) => console.log('clicked')}>Page</Link>
+```
+
+---
+
+### NavLink
+
+Enhanced Link with active state styling.
+
+#### Props
+
+```typescript
+interface NavLinkProps extends LinkProps {
+  activeClassName?: string; // Class when active (default: "active")
+  activeStyle?: CSSProperties; // Style when active
+  isActive?: (match, location) => boolean; // Custom active check
+  end?: boolean; // Exact matching
+  caseSensitive?: boolean; // Case-sensitive matching
+}
+```
+
+#### Examples
+
+```tsx
+import { NavLink } from "router-kit";
+
+// Basic
+<NavLink to="/" activeClassName="active" end>Home</NavLink>
+
+// With activeStyle
+<NavLink to="/about" activeStyle={{ fontWeight: 'bold' }}>About</NavLink>
+
+// Custom active logic
+<NavLink
+  to="/users"
+  isActive={(match, location) => location.pathname.startsWith('/users')}
+>
+  Users
+</NavLink>
+
+// Render prop pattern
+<NavLink to="/dashboard">
+  {({ isActive }) => (
+    <span className={isActive ? 'active' : ''}>
+      Dashboard {isActive && '✓'}
+    </span>
+  )}
+</NavLink>
+```
+
+---
+
+### Outlet
+
+Renders child route content within parent layouts. Essential for nested routing patterns.
+
+#### Props
+
+```typescript
+interface OutletProps {
+  context?: any; // Context to pass to child routes
+}
+```
+
+#### Basic Usage
+
+```tsx
+import { Outlet } from "router-kit";
+
+function Layout() {
   return (
-    <nav>
-      <Link to="/">Home</Link>
-      <Link to="/about" className="nav-link">
-        About
-      </Link>
-      <Link to="/users/123">User Profile</Link>
-    </nav>
+    <div>
+      <Header />
+      <main>
+        <Outlet /> {/* Child routes render here */}
+      </main>
+      <Footer />
+    </div>
   );
 }
 ```
+
+#### With Context
+
+```tsx
+import { Outlet, useOutletContext } from "router-kit";
+
+// Parent component passes context
+function DashboardLayout() {
+  const [user, setUser] = useState<User | null>(null);
+
+  return (
+    <div>
+      <Sidebar user={user} />
+      <Outlet context={{ user, setUser }} />
+    </div>
+  );
+}
+
+// Child component receives context
+interface DashboardContext {
+  user: User | null;
+  setUser: (user: User | null) => void;
+}
+
+function DashboardSettings() {
+  const { user, setUser } = useOutletContext<DashboardContext>();
+  return <UserSettings user={user} onSave={setUser} />;
+}
+```
+
+---
+
+## Hooks
+
+### useRouter()
+
+Access the full router context.
+
+```typescript
+const {
+  pathname, // Current path
+  pattern, // Matched pattern (e.g., /users/:id)
+  search, // Query string
+  hash, // URL hash
+  state, // History state
+  params, // Route parameters
+  matches, // Route match chain
+  navigate, // Navigate function
+  back, // Go back
+  forward, // Go forward
+  isNavigating, // Navigation loading state
+  loaderData, // Data from loader
+  meta, // Route metadata
+} = useRouter();
+```
+
+---
+
+### useNavigate()
+
+Get the navigation function.
+
+```typescript
+const navigate = useNavigate();
+
+// Navigate to path
+navigate("/dashboard");
+
+// With options
+navigate("/login", { replace: true, state: { from: pathname } });
+
+// Go back/forward
+navigate(-1); // Back
+navigate(1); // Forward
+navigate(-2); // Back 2 steps
+```
+
+---
+
+### useLocation()
+
+Access the current location.
+
+```typescript
+const location = useLocation();
+
+console.log(location.pathname); // "/users/123"
+console.log(location.search); // "?tab=profile"
+console.log(location.hash); // "#section1"
+console.log(location.state); // { from: "/home" }
+console.log(location.key); // "abc123"
+```
+
+---
+
+### useResolvedPath()
+
+Resolve relative paths.
+
+```typescript
+const resolvePath = useResolvedPath();
+
+// Current path: /users/123
+console.log(resolvePath("../settings")); // "/users/settings"
+console.log(resolvePath("./edit")); // "/users/123/edit"
+console.log(resolvePath("/home")); // "/home"
+```
+
+---
+
+### useParams()
+
+Extract route parameters.
+
+```typescript
+// Route: /users/:userId/posts/:postId
+// URL: /users/123/posts/456
+
+const params = useParams();
+console.log(params.userId); // "123"
+console.log(params.postId); // "456"
+
+// With TypeScript generics
+const { userId, postId } = useParams<"userId" | "postId">();
+```
+
+---
+
+### useParam()
+
+Get a single parameter.
+
+```typescript
+const userId = useParam("userId");
+```
+
+---
+
+### useQuery()
+
+Get query parameters as an object.
+
+```typescript
+// URL: /search?q=react&page=2
+
+const query = useQuery();
+console.log(query.q); // "react"
+console.log(query.page); // "2"
+```
+
+---
+
+### useSearchParams()
+
+Full control over search parameters.
+
+```typescript
+const [searchParams, setSearchParams] = useSearchParams();
+
+// Read
+console.log(searchParams.get("q")); // "react"
+
+// Update
+setSearchParams({ q: "vue", page: "1" });
+
+// Functional update
+setSearchParams((prev) => ({
+  ...Object.fromEntries(prev),
+  page: "3",
+}));
+
+// Replace instead of push
+setSearchParams({ q: "angular" }, { replace: true });
+```
+
+---
+
+### useMatches()
+
+Get all route matches from root to current.
+
+```typescript
+const matches = useMatches();
+
+matches.forEach((match) => {
+  console.log(match.pathname); // Matched pathname
+  console.log(match.params); // Route params
+  console.log(match.pattern); // Route pattern
+  console.log(match.route.meta); // Route metadata
+});
+```
+
+---
+
+### useMatch()
+
+Get the current (leaf) route match.
+
+```typescript
+const match = useMatch();
+
+if (match) {
+  console.log(match.params);
+  console.log(match.pattern);
+}
+```
+
+---
+
+### useMatchPath()
+
+Check if a path matches current location.
+
+```typescript
+const isUsersActive = useMatchPath("/users");
+const isExactHome = useMatchPath("/", { end: true });
+const isCaseSensitive = useMatchPath("/Users", { caseSensitive: true });
+```
+
+---
+
+### useLoaderData()
+
+Access data from route loader.
+
+```typescript
+// Route config
+{
+  path: "user/:id",
+  component: <User />,
+  loader: ({ params }) => fetchUser(params.id)
+}
+
+// In component
+function User() {
+  const user = useLoaderData<User>();
+  return <div>{user.name}</div>;
+}
+```
+
+---
+
+### useRouteMeta()
+
+Access route metadata.
+
+```typescript
+// Route config
+{
+  path: "about",
+  component: <About />,
+  meta: { title: "About Us" }
+}
+
+// In component
+function About() {
+  const meta = useRouteMeta();
+
+  useEffect(() => {
+    if (meta?.title) document.title = meta.title;
+  }, [meta]);
+}
+```
+
+---
+
+### useIsNavigating()
+
+Check if navigation is in progress.
+
+```typescript
+const isNavigating = useIsNavigating();
+
+return (
+  <div>
+    {isNavigating && <LoadingBar />}
+    <Content />
+  </div>
+);
+```
+
+---
+
+### useBlocker()
+
+Block navigation with confirmation.
+
+```typescript
+const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+  return (
+    hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
+  );
+});
+
+if (blocker.state === "blocked") {
+  return (
+    <Modal>
+      <p>You have unsaved changes!</p>
+      <button onClick={blocker.proceed}>Leave</button>
+      <button onClick={blocker.reset}>Stay</button>
+    </Modal>
+  );
+}
+```
+
+---
+
+### usePrompt()
+
+Simple navigation prompt.
+
+```typescript
+usePrompt("You have unsaved changes!", hasUnsavedChanges);
+```
+
+---
+
+### useDynamicComponents()
+
+Select component based on route parameter.
+
+```typescript
+// Route: /dashboard/:tab
+
+const tabs = {
+  overview: <Overview />,
+  analytics: <Analytics />,
+  settings: <Settings />,
+};
+
+// Basic usage
+const TabComponent = useDynamicComponents(tabs, "tab");
+
+// With fallback
+const TabComponent = useDynamicComponents(tabs, "tab", {
+  fallback: <DefaultTab />,
+  throwOnNotFound: false,
+});
+```
+
+---
+
+### useOutlet()
+
+Get the child route element directly.
+
+```typescript
+const outlet = useOutlet();
+
+// Returns the child route element or null
+function Layout() {
+  const outlet = useOutlet();
+
+  return (
+    <div>
+      <Header />
+      {outlet || <EmptyState message="Select a page" />}
+      <Footer />
+    </div>
+  );
+}
+```
+
+---
+
+### useOutletContext()
+
+Access context passed from parent route's `<Outlet context={...} />`.
+
+```typescript
+// Type-safe context access
+interface AppContext {
+  theme: "light" | "dark";
+  user: User | null;
+  toggleTheme: () => void;
+}
+
+function ChildRoute() {
+  const { theme, user, toggleTheme } = useOutletContext<AppContext>();
+
+  return (
+    <div className={`theme-${theme}`}>
+      <p>Welcome, {user?.name}</p>
+      <button onClick={toggleTheme}>Toggle Theme</button>
+    </div>
+  );
+}
+```
+
+---
+
+## Types
+
+### Route Types
+
+```typescript
+interface Route {
+  path: string | string[];
+  component: JSX.Element;
+  children?: Route[];
+  index?: boolean;
+  lazy?: LazyExoticComponent<ComponentType<any>>;
+  loader?: RouteLoader;
+  errorElement?: JSX.Element;
+  redirectTo?: string;
+  guard?: RouteGuard;
+  meta?: RouteMeta;
+}
+
+type RouteLoader<T = any> = (args: LoaderArgs) => Promise<T> | T;
+
+interface LoaderArgs {
+  params: Record<string, string>;
+  request: Request;
+  signal: AbortSignal;
+}
+
+type RouteGuard = (args: GuardArgs) => boolean | Promise<boolean> | string;
+
+interface GuardArgs {
+  pathname: string;
+  params: Record<string, string>;
+  search: string;
+}
+
+interface RouteMeta {
+  title?: string;
+  description?: string;
+  [key: string]: any;
+}
+
+interface RouteMatch {
+  route: Route;
+  params: Record<string, string>;
+  pathname: string;
+  pathnameBase: string;
+  pattern: string;
+}
+```
+
+### Navigation Types
+
+```typescript
+interface NavigateOptions {
+  replace?: boolean;
+  state?: any;
+  preventScrollReset?: boolean;
+  relative?: "route" | "path";
+}
+
+type NavigateFunction = {
+  (to: string, options?: NavigateOptions): void;
+  (delta: number): void;
+};
+```
+
+### Location Types
+
+```typescript
+interface Location {
+  pathname: string;
+  search: string;
+  hash: string;
+  state: any;
+  key: string;
+}
+
+type HistoryAction = "POP" | "PUSH" | "REPLACE";
+```
+
+### Blocker Types
+
+```typescript
+type BlockerFunction = (args: {
+  currentLocation: Location;
+  nextLocation: Location;
+  action: HistoryAction;
+}) => boolean;
+
+interface Blocker {
+  state: "blocked" | "proceeding" | "unblocked";
+  proceed: () => void;
+  reset: () => void;
+  location?: Location;
+}
+```
+
+---
+
+## Error System
+
+### Error Codes
+
+```typescript
+enum RouterErrorCode {
+  ROUTER_NOT_INITIALIZED = "ROUTER_NOT_INITIALIZED",
+  PARAM_NOT_DEFINED = "PARAM_NOT_DEFINED",
+  PARAM_INVALID_TYPE = "PARAM_INVALID_TYPE",
+  PARAM_EMPTY_STRING = "PARAM_EMPTY_STRING",
+  COMPONENT_NOT_FOUND = "COMPONENT_NOT_FOUND",
+  NAVIGATION_ABORTED = "NAVIGATION_ABORTED",
+  INVALID_ROUTE = "INVALID_ROUTE",
+}
+```
+
+### Error Helpers
+
+```typescript
+import { RouterErrors, createRouterError, RouterErrorCode } from "router-kit";
+
+// Pre-defined error throwers
+RouterErrors.routerNotInitialized();
+RouterErrors.paramNotDefined("userId", ["id", "name"]);
+RouterErrors.invalidRoute("/bad-path", "Invalid characters");
+
+// Custom error creation
+const error = createRouterError(
+  RouterErrorCode.NAVIGATION_ABORTED,
+  "Navigation cancelled by user"
+);
+```
+
+import { Link } from "router-kit";
+
+function Navigation() {
+return (
+
+<nav>
+<Link to="/">Home</Link>
+<Link to="/about" className="nav-link">
+About
+</Link>
+<Link to="/users/123">User Profile</Link>
+</nav>
+);
+}
+
+````
 
 #### Accessibility
 
@@ -240,7 +965,7 @@ interface NavLinkProps {
   className?: string;
   activeClassName?: string;
 }
-```
+````
 
 | Prop            | Type      | Required | Default   | Description                |
 | --------------- | --------- | -------- | --------- | -------------------------- |

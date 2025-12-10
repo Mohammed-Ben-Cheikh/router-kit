@@ -124,6 +124,30 @@ const joinPaths = (parent: string, child: string): string => {
 };
 
 /**
+ * Normalize path to string (handles array paths)
+ */
+const normalizePath = (path: string | string[]): string => {
+  if (Array.isArray(path)) {
+    return path.map((p) => (p.startsWith("/") ? p.slice(1) : p)).join("|");
+  }
+  return path;
+};
+
+/**
+ * Get the first path from a path (string or array)
+ */
+const getFirstPath = (path: string | string[]): string => {
+  if (Array.isArray(path)) {
+    return path[0] || "";
+  }
+  // Handle pipe-separated paths (already normalized)
+  if (path.includes("|")) {
+    return path.split("|")[0];
+  }
+  return path;
+};
+
+/**
  * StaticRouter - Server-side rendering router
  *
  * This component renders routes on the server without relying on browser APIs.
@@ -244,8 +268,18 @@ const StaticRouter = ({
     ];
 
     for (const route of orderedRoutes) {
-      const fullPath = joinPaths(parentPath, route.path as string);
-      const matchResult = matchPath(fullPath, currentPath);
+      const normalizedRoutePath = normalizePath(route.path);
+      const firstPath = getFirstPath(route.path);
+      const fullPath = joinPaths(parentPath, firstPath);
+      const matchResult = matchPath(
+        normalizedRoutePath.includes("|")
+          ? normalizedRoutePath
+              .split("|")
+              .map((p) => joinPaths(parentPath, p))
+              .join("|")
+          : fullPath,
+        currentPath
+      );
 
       if (matchResult) {
         // Handle redirects
@@ -325,8 +359,13 @@ const StaticRouter = ({
 
       // Check children routes
       if (route.children) {
-        const fullPath = joinPaths(parentPath, route.path as string);
-        const childMatch = findMatch(route.children, currentPath, fullPath);
+        const firstPath = getFirstPath(route.path);
+        const childFullPath = joinPaths(parentPath, firstPath);
+        const childMatch = findMatch(
+          route.children,
+          currentPath,
+          childFullPath
+        );
         if (childMatch) return childMatch;
       }
     }

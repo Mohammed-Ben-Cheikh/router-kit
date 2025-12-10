@@ -5,7 +5,7 @@
     "email": "mohammed.bencheikh.dev@gmail.com",
     "url": "https://mohammedbencheikh.com/"
   },
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A professional React routing library with guards, loaders, and navigation blocking",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

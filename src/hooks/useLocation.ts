@@ -9,7 +9,13 @@ const createKey = (): string => {
 };
 
 /**
- * Get current location snapshot
+ * Cached location to avoid infinite loops with useSyncExternalStore
+ */
+let cachedLocation: Location | null = null;
+let cachedLocationString: string = "";
+
+/**
+ * Get current location snapshot (cached)
  */
 const getLocationSnapshot = (): Location => {
   if (typeof window === "undefined") {
@@ -22,13 +28,29 @@ const getLocationSnapshot = (): Location => {
     };
   }
 
-  return {
+  // Create a string representation to compare
+  const currentLocationString = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const currentStateKey = window.history.state?.key;
+  const fullLocationString = `${currentLocationString}|${
+    currentStateKey || ""
+  }`;
+
+  // Return cached location if nothing changed
+  if (cachedLocation && cachedLocationString === fullLocationString) {
+    return cachedLocation;
+  }
+
+  // Create new location and cache it
+  cachedLocation = {
     pathname: window.location.pathname,
     search: window.location.search,
     hash: window.location.hash,
     state: window.history.state,
-    key: window.history.state?.key ?? createKey(),
+    key: currentStateKey ?? createKey(),
   };
+  cachedLocationString = fullLocationString;
+
+  return cachedLocation;
 };
 
 /**
@@ -39,25 +61,34 @@ const subscribeToLocation = (callback: () => void): (() => void) => {
     return () => {};
   }
 
-  window.addEventListener("popstate", callback);
-  window.addEventListener("locationchange", callback);
+  const handleLocationChange = () => {
+    // Invalidate cache on location change
+    cachedLocation = null;
+    cachedLocationString = "";
+    callback();
+  };
+
+  window.addEventListener("popstate", handleLocationChange);
+  window.addEventListener("locationchange", handleLocationChange);
 
   return () => {
-    window.removeEventListener("popstate", callback);
-    window.removeEventListener("locationchange", callback);
+    window.removeEventListener("popstate", handleLocationChange);
+    window.removeEventListener("locationchange", handleLocationChange);
   };
 };
 
 /**
- * Server-side location snapshot
+ * Server-side location snapshot (cached)
  */
-const getServerSnapshot = (): Location => ({
+const serverSnapshot: Location = {
   pathname: "",
   search: "",
   hash: "",
   state: null,
   key: "default",
-});
+};
+
+const getServerSnapshot = (): Location => serverSnapshot;
 
 /**
  * Hook to access the current location

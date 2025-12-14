@@ -12,6 +12,7 @@ import join from "url-join";
 import Page404 from "../pages/404";
 import type {
   Location,
+  MiddlewareContext,
   NavigateFunction,
   NavigateOptions,
   Route,
@@ -25,6 +26,7 @@ import {
   RouterErrorCode,
   RouterErrors,
 } from "../utils/error/errors";
+import { executeMiddlewareChain } from "../utils/middleware";
 import { OutletProvider } from "./OutletContext";
 import RouterContext from "./RouterContext";
 
@@ -44,7 +46,8 @@ const validateUrl = (url: string): boolean => {
  * Normalize path to string (handles array paths)
  * Preserves '/' as a special case for root path
  */
-const normalizePath = (path: string | string[]): string => {
+const normalizePath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path
       .map((p) => {
@@ -62,7 +65,8 @@ const normalizePath = (path: string | string[]): string => {
 /**
  * Get the first path from a path (string or array)
  */
-const getFirstPath = (path: string | string[]): string => {
+const getFirstPath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path[0] || "";
   }
@@ -107,7 +111,8 @@ const getCurrentLocation = (): Location => {
  */
 const extractParams = (
   pattern: string,
-  pathname: string
+  pathname: string,
+  partialMatch: boolean = false
 ): Record<string, string> | null => {
   // Special case: root path matching
   const normalizedPattern = pattern === "/" ? "" : pattern;
@@ -121,7 +126,12 @@ const extractParams = (
     return {};
   }
 
-  if (patternParts.length !== pathParts.length) {
+  // If partial match is allowed, we only need to match up to the pattern length
+  // The route matches if it consumes a prefix of the URL
+  if (partialMatch) {
+    if (patternParts.length > pathParts.length) return null;
+  } else if (patternParts.length !== pathParts.length) {
+    // Exact match logic (unless catch-all)
     // Check for catch-all pattern
     const hasCatchAll = patternParts.some((p) => p.startsWith("*"));
     if (!hasCatchAll) return null;
@@ -136,6 +146,9 @@ const extractParams = (
     // Catch-all segment (*splat or **)
     if (patternPart.startsWith("*")) {
       const paramName = patternPart.slice(1) || "splat";
+      // For partial match, catch-all consumes everything remaining?
+      // Or just the rest of what was requested?
+      // Usually catch-all consumes everything, so it behaves like exact match + capture
       params[paramName] = pathParts.slice(i).join("/");
       return params;
     }
@@ -170,11 +183,14 @@ interface MatchResult {
   matches: RouteMatch[];
   meta: RouteMeta | null;
   redirect?: string;
+  error?: Error;
   loader?: {
     fn: (args: any) => Promise<any> | any;
     params: Record<string, string>;
   };
   page404Component?: ReactNode;
+  errorElement?: ReactNode;
+  middlewareResult?: { type: "continue" | "redirect" | "block"; to?: string };
 }
 
 /**
@@ -182,7 +198,8 @@ interface MatchResult {
  */
 const matchPathPattern = (
   routePattern: string,
-  currentPath: string
+  currentPath: string,
+  partialMatch: boolean = false
 ): {
   match: boolean;
   params: Record<string, string>;
@@ -193,7 +210,11 @@ const matchPathPattern = (
   for (const pat of patterns) {
     // Handle root path pattern
     const normalizedPat = pat === "" ? "/" : pat;
-    const extractedParams = extractParams(normalizedPat, currentPath);
+    const extractedParams = extractParams(
+      normalizedPat,
+      currentPath,
+      partialMatch
+    );
     if (extractedParams !== null) {
       return { match: true, params: extractedParams, pattern: normalizedPat };
     }
@@ -202,26 +223,30 @@ const matchPathPattern = (
 };
 
 /**
- * Pure function to match routes and return result without side effects
+ * Async function to match routes with middleware and guard support
+ * Handles both sync and async guards/middleware
  */
-const matchRoutes = (
+const matchRoutesAsync = async (
   routesList: Route[],
   currentPath: string,
   parentPath: string = "/",
   searchString: string = "",
-  collectedMatches: RouteMatch[] = []
-): MatchResult => {
+  collectedMatches: RouteMatch[] = [],
+  request?: Request,
+  signal?: AbortSignal
+): Promise<MatchResult> => {
   const staticRoutes: Route[] = [];
   const dynamicRoutes: Route[] = [];
   const catchAllRoutes: Route[] = [];
   let page404Component: ReactNode = null;
 
   for (const route of routesList) {
-    const pathArray = Array.isArray(route.path)
-      ? route.path
-      : route.path.includes("|")
-      ? route.path.split("|")
-      : [route.path];
+    const rawPath = route.path || "";
+    const pathArray = Array.isArray(rawPath)
+      ? rawPath
+      : rawPath.includes("|")
+      ? rawPath.split("|")
+      : [rawPath];
     const is404 = pathArray.some((p) => p === "404" || p === "/404");
     if (is404) {
       page404Component = route.component;
@@ -262,7 +287,10 @@ const matchRoutes = (
           })
           .join("|")
       : fullPath;
-    const matchResult = matchPathPattern(fullPattern, currentPath);
+
+    // Enable partial matching if route has children
+    const isParent = route.children && route.children.length > 0;
+    const matchResult = matchPathPattern(fullPattern, currentPath, isParent);
 
     if (matchResult) {
       // Handle redirects
@@ -278,27 +306,98 @@ const matchRoutes = (
         };
       }
 
-      // Handle guards
-      if (route.guard) {
-        const guardResult = route.guard({
+      // Execute middleware chain (Chain of Responsibility pattern)
+      if (route.middleware && route.middleware.length > 0) {
+        const middlewareContext: MiddlewareContext = {
           pathname: currentPath,
           params: matchResult.params,
           search: searchString,
-        });
+          request,
+          signal,
+        };
 
-        if (typeof guardResult === "string") {
+        try {
+          const middlewareResult = await executeMiddlewareChain(
+            route.middleware,
+            middlewareContext
+          );
+
+          // Handle middleware redirect
+          if (middlewareResult.type === "redirect") {
+            return {
+              component: null,
+              pattern: matchResult.pattern,
+              params: matchResult.params,
+              matches: collectedMatches,
+              meta: null,
+              redirect: middlewareResult.to || "/",
+              page404Component,
+              errorElement: route.errorElement,
+              middlewareResult,
+            };
+          }
+
+          // Handle middleware block
+          if (middlewareResult.type === "block") {
+            continue; // Skip this route
+          }
+        } catch (error) {
+          // Middleware threw an error - return error result
           return {
             component: null,
             pattern: matchResult.pattern,
             params: matchResult.params,
             matches: collectedMatches,
             meta: null,
-            redirect: guardResult,
+            error: error instanceof Error ? error : new Error(String(error)),
             page404Component,
+            errorElement: route.errorElement,
           };
         }
-        if (guardResult === false) {
-          continue; // Skip this route
+      }
+
+      // Handle guards (supports async)
+      if (route.guard) {
+        const guardArgs = {
+          pathname: currentPath,
+          params: matchResult.params,
+          search: searchString,
+          request,
+          signal,
+        };
+
+        try {
+          // Handle both sync and async guards
+          const guardResult = await Promise.resolve(route.guard(guardArgs));
+
+          // Guard can return string (redirect), boolean, or Promise of either
+          if (typeof guardResult === "string") {
+            return {
+              component: null,
+              pattern: matchResult.pattern,
+              params: matchResult.params,
+              matches: collectedMatches,
+              meta: null,
+              redirect: guardResult,
+              page404Component,
+              errorElement: route.errorElement,
+            };
+          }
+          if (guardResult === false) {
+            continue; // Skip this route
+          }
+        } catch (error) {
+          // Guard threw an error - return error result
+          return {
+            component: null,
+            pattern: matchResult.pattern,
+            params: matchResult.params,
+            matches: collectedMatches,
+            meta: null,
+            error: error instanceof Error ? error : new Error(String(error)),
+            page404Component,
+            errorElement: route.errorElement,
+          };
         }
       }
 
@@ -315,12 +414,14 @@ const matchRoutes = (
 
       // Handle nested routes with Outlet support
       if (route.children && route.children.length > 0) {
-        const childResult = matchRoutes(
+        const childResult = await matchRoutesAsync(
           route.children,
           currentPath,
           fullPath,
           searchString,
-          newMatches
+          newMatches,
+          request,
+          signal
         );
 
         if (childResult.component || childResult.redirect) {
@@ -344,31 +445,49 @@ const matchRoutes = (
               ? { fn: route.loader, params: matchResult.params }
               : childResult.loader,
             page404Component: page404Component || childResult.page404Component,
+            errorElement: route.errorElement || childResult.errorElement,
           };
         }
       }
 
-      return {
-        component: route.component,
-        pattern: matchResult.pattern,
-        params: matchResult.params,
-        matches: newMatches,
-        meta: route.meta || null,
-        loader: route.loader
-          ? { fn: route.loader, params: matchResult.params }
-          : undefined,
-        page404Component,
-      };
+      // If we are here, children were checked but none matched (or didn't return a component).
+      // We must check if THIS route is an EXACT match for the current path.
+      // If it was only a partial match (prefix), and no children matched, then this route is NOT the correct match.
+      // Exceptions:
+      // 1. If it's a catch-all route (handled by exact match logic usually, or explicitly)
+      // 2. If the user intentionally wants to map a prefix to a component without children (unlikely if children prop exists)
+
+      const isExactMatch = matchPathPattern(fullPattern, currentPath, false);
+
+      if (isExactMatch) {
+        return {
+          component: route.component,
+          pattern: matchResult.pattern,
+          params: matchResult.params,
+          matches: newMatches,
+          meta: route.meta || null,
+          loader: route.loader
+            ? { fn: route.loader, params: matchResult.params }
+            : undefined,
+          page404Component,
+          errorElement: route.errorElement,
+        };
+      }
+
+      // If not exact match and no children matched, this partial match is invalid.
+      // Fall through to continue loop.
     }
 
     // Check children routes (for routes without matching parent)
     if (route.children) {
-      const childResult = matchRoutes(
+      const childResult = await matchRoutesAsync(
         route.children,
         currentPath,
         fullPath,
         searchString,
-        collectedMatches
+        collectedMatches,
+        request,
+        signal
       );
       if (childResult.component || childResult.redirect) {
         return {
@@ -409,10 +528,22 @@ const RouterProvider = ({
 }: RouterProviderProps) => {
   const [location, setLocation] = useState<Location>(getCurrentLocation);
   const [loaderData, setLoaderData] = useState<any>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [matchResult, setMatchResult] = useState<MatchResult>({
+    component: null,
+    pattern: "",
+    params: {},
+    matches: [],
+    meta: null,
+    page404Component: null,
+  });
+  // Track initial route resolution to prevent 404 flash
+  const [isResolving, setIsResolving] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   const scrollPositions = useRef<Map<string, number>>(new Map());
   const isNavigatingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   /**
    * Normalize pathname by removing basename
@@ -561,14 +692,74 @@ const RouterProvider = ({
   }, []);
 
   /**
-   * Compute matched route result (pure computation)
+   * Compute matched route result with async middleware and guard support
    */
   const normalizedPath = normalizePathname(location.pathname);
 
-  const matchResult = useMemo(
-    () => matchRoutes(routes, normalizedPath, "/", location.search),
-    [routes, normalizedPath, location.search]
-  );
+  // Async route matching with middleware and guards
+  useEffect(() => {
+    // Abort previous matching if still in progress
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this matching
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    // Create request object for middleware/guards
+    const request =
+      typeof window !== "undefined"
+        ? new Request(window.location.href)
+        : undefined;
+
+    // Execute async route matching
+    // Only set resolving for the first time to prevent layout unmounting on navigation
+    // setIsResolving(true); // Removed to prevent flicker
+    matchRoutesAsync(
+      routes,
+      normalizedPath,
+      "/",
+      location.search,
+      [],
+      request,
+      abortController.signal
+    )
+      .then((result) => {
+        // Only update if not aborted
+        if (!abortController.signal.aborted) {
+          setMatchResult(result);
+
+          // If the new route has a loader, we handle data clearing
+          if (result.loader) {
+            setLoaderData(null);
+          }
+
+          setError(null); // Clear any previous errors on successful match
+          setIsResolving(false);
+        }
+      })
+      .catch((error) => {
+        // Ignore abort errors
+        if (error.name !== "AbortError") {
+          console.error("[router-kit] Route matching error:", error);
+          setError(error);
+          setMatchResult({
+            component: null,
+            pattern: "",
+            params: {},
+            matches: [],
+            meta: null,
+            page404Component: null,
+          });
+          setIsResolving(false);
+        }
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [routes, normalizedPath, location.search]);
 
   // Handle redirects
   useEffect(() => {
@@ -587,9 +778,21 @@ const RouterProvider = ({
           request: new Request(window.location.href),
           signal: abortController.signal,
         })
-      ).then(setLoaderData);
+      )
+        .then((data) => {
+          setLoaderData(data);
+          setError(null); // Clear error on successful loader
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") {
+            console.error("[router-kit] Loader error:", error);
+            setError(error);
+          }
+        });
 
       return () => abortController.abort();
+    } else {
+      setLoaderData(null);
     }
   }, [matchResult.loader]);
 
@@ -598,10 +801,42 @@ const RouterProvider = ({
     if (matchResult.meta?.title && typeof document !== "undefined") {
       document.title = matchResult.meta.title;
     }
+    if (matchResult.meta?.description && typeof document !== "undefined") {
+      let descriptionTag = document.querySelector(
+        'meta[name="description"]'
+      ) as HTMLMetaElement | null;
+      if (!descriptionTag) {
+        descriptionTag = document.createElement("meta");
+        descriptionTag.name = "description";
+        document.head.appendChild(descriptionTag);
+      }
+      descriptionTag.content = matchResult.meta.description;
+    }
   }, [matchResult.meta]);
 
+  // Determine the loading component to show (if any)
+  const routeLoadingComponent =
+    matchResult.matches.length > 0
+      ? matchResult.matches[matchResult.matches.length - 1].route.loading
+      : null;
+
+  // Only show loading if:
+  // 1. Initial resolution (isResolving)
+  // 2. We have a match with a loader but no data yet (loaderData is null)
+  // We removed isPending to prevent "flash" of loading state during standard navigation transitions
+  const showLoading = isResolving || (matchResult.loader && !loaderData);
+
+  // Prioritize error -> loading -> content -> 404
   const component =
-    matchResult.component ?? (matchResult.page404Component || <Page404 />);
+    (error || matchResult.error) && matchResult.errorElement ? (
+      matchResult.errorElement
+    ) : showLoading ? (
+      <Suspense fallback={fallbackElement || null}>
+        {routeLoadingComponent || fallbackElement || null}
+      </Suspense>
+    ) : (
+      matchResult.component ?? (matchResult.page404Component || <Page404 />)
+    );
 
   /**
    * Build context value with memoization
@@ -646,11 +881,7 @@ const RouterProvider = ({
 
   return (
     <RouterContext.Provider value={contextValue}>
-      {fallbackElement && isPending ? (
-        <Suspense fallback={fallbackElement}>{component}</Suspense>
-      ) : (
-        component
-      )}
+      <Suspense fallback={fallbackElement || null}>{component}</Suspense>
     </RouterContext.Provider>
   );
 };

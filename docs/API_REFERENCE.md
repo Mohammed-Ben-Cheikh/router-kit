@@ -1,6 +1,6 @@
 # Router-Kit API Reference
 
-Complete API documentation for Router-Kit v2.0.0
+Complete API documentation for Router-Kit v2.1.0
 
 ---
 

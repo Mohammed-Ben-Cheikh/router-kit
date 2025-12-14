@@ -4,7 +4,8 @@ import type { Route } from "../types";
  * Normalizes a path by removing leading slashes and handling arrays
  * Preserves "/" as empty string for root path matching
  */
-const normalizePath = (path: string | string[]): string => {
+const normalizePath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   const pathArray = Array.isArray(path) ? path : [path];
   const normalized = pathArray.map((p) => {
     if (!p) return "";
@@ -37,20 +38,22 @@ const validateRoute = (route: Route, path: string): void => {
   }
 
   // Validate path patterns
-  const pathArray = Array.isArray(route.path) ? route.path : [route.path];
-  for (const p of pathArray) {
-    // Check for invalid characters
-    if (/[<>"|\\]/.test(p)) {
-      console.warn(
-        `[router-kit] Route path "${p}" contains invalid characters.`
-      );
-    }
+  if (route.path) {
+    const pathArray = Array.isArray(route.path) ? route.path : [route.path];
+    for (const p of pathArray) {
+      // Check for invalid characters
+      if (/[<>"|\\]/.test(p)) {
+        console.warn(
+          `[router-kit] Route path "${p}" contains invalid characters.`
+        );
+      }
 
-    // Warn about potential issues with catch-all routes
-    if (p.includes("*") && !p.endsWith("*") && !p.includes("*/")) {
-      console.warn(
-        `[router-kit] Catch-all (*) should typically be at the end of a path: "${p}"`
-      );
+      // Warn about potential issues with catch-all routes
+      if (p.includes("*") && !p.endsWith("*") && !p.includes("*/")) {
+        console.warn(
+          `[router-kit] Catch-all (*) should typically be at the end of a path: "${p}"`
+        );
+      }
     }
   }
 };

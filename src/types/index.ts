@@ -5,13 +5,15 @@ import { ComponentType, JSX, LazyExoticComponent, ReactNode } from "react";
  */
 export interface Route {
   /** Path pattern(s) for the route */
-  path: string | string[];
+  path?: string | string[];
   /** Component to render */
   component: JSX.Element;
   /** Nested child routes */
   children?: Route[];
   /** Index route flag - renders when parent path matches exactly */
   index?: boolean;
+  /** Component to render while loading data or performing async tasks */
+  loading?: JSX.Element;
   /** Lazy-loaded component */
   lazy?: LazyExoticComponent<ComponentType<any>>;
   /** Route loader function for data fetching */
@@ -22,6 +24,8 @@ export interface Route {
   redirectTo?: string;
   /** Route guard function */
   guard?: RouteGuard;
+  /** Middleware chain for route processing (Chain of Responsibility pattern) */
+  middleware?: Middleware[];
   /** Route metadata */
   meta?: RouteMeta;
 }
@@ -41,11 +45,40 @@ export interface LoaderArgs {
 }
 
 /**
- * Route guard function type
+ * Middleware context passed to middleware functions
+ */
+export interface MiddlewareContext {
+  pathname: string;
+  params: Record<string, string>;
+  search: string;
+  request?: Request;
+  signal?: AbortSignal;
+}
+
+/**
+ * Middleware result - can redirect, block, or continue
+ */
+export type MiddlewareResult =
+  | { type: "continue" }
+  | { type: "redirect"; to: string }
+  | { type: "block" };
+
+/**
+ * Middleware function type - supports both sync and async
+ * Returns MiddlewareResult or Promise<MiddlewareResult>
+ */
+export type Middleware = (
+  context: MiddlewareContext,
+  next: () => Promise<MiddlewareResult>
+) => MiddlewareResult | Promise<MiddlewareResult>;
+
+/**
+ * Route guard function type - supports both sync and async
+ * Can return boolean, Promise<boolean>, or redirect string
  */
 export type RouteGuard = (
   args: GuardArgs
-) => boolean | Promise<boolean> | string;
+) => boolean | Promise<boolean> | string | Promise<string>;
 
 /**
  * Guard function arguments
@@ -54,6 +87,8 @@ export interface GuardArgs {
   pathname: string;
   params: Record<string, string>;
   search: string;
+  request?: Request;
+  signal?: AbortSignal;
 }
 
 /**

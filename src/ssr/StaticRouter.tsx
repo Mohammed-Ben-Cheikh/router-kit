@@ -75,12 +75,15 @@ const parseUrl = (
  */
 const extractParams = (
   pattern: string,
-  pathname: string
+  pathname: string,
+  partialMatch: boolean = false
 ): Record<string, string> | null => {
   const patternParts = pattern.split("/").filter(Boolean);
   const pathParts = pathname.split("/").filter(Boolean);
 
-  if (patternParts.length !== pathParts.length) {
+  if (partialMatch) {
+    if (patternParts.length > pathParts.length) return null;
+  } else if (patternParts.length !== pathParts.length) {
     const hasCatchAll = patternParts.some((p) => p.startsWith("*"));
     if (!hasCatchAll) return null;
   }
@@ -126,7 +129,8 @@ const joinPaths = (parent: string, child: string): string => {
 /**
  * Normalize path to string (handles array paths)
  */
-const normalizePath = (path: string | string[]): string => {
+const normalizePath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path.map((p) => (p.startsWith("/") ? p.slice(1) : p)).join("|");
   }
@@ -136,7 +140,8 @@ const normalizePath = (path: string | string[]): string => {
 /**
  * Get the first path from a path (string or array)
  */
-const getFirstPath = (path: string | string[]): string => {
+const getFirstPath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path[0] || "";
   }
@@ -207,7 +212,8 @@ const StaticRouter = ({
   // Match path helper
   const matchPath = (
     routePattern: string,
-    currentPath: string
+    currentPath: string,
+    partialMatch: boolean = false
   ): {
     match: boolean;
     params: Record<string, string>;
@@ -215,7 +221,7 @@ const StaticRouter = ({
   } | null => {
     const patterns = routePattern.split("|");
     for (const pat of patterns) {
-      const extractedParams = extractParams(pat, currentPath);
+      const extractedParams = extractParams(pat, currentPath, partialMatch);
       if (extractedParams !== null) {
         return { match: true, params: extractedParams, pattern: pat };
       }
@@ -248,7 +254,11 @@ const StaticRouter = ({
         continue;
       }
 
-      const pathArray = Array.isArray(route.path) ? route.path : [route.path];
+      const pathArray = Array.isArray(route.path)
+        ? route.path
+        : route.path
+        ? [route.path]
+        : [];
       const hasCatchAll = pathArray.some((p) => p.includes("*"));
       const hasDynamicParams = pathArray.some((p) => p.includes(":"));
 
@@ -271,6 +281,7 @@ const StaticRouter = ({
       const normalizedRoutePath = normalizePath(route.path);
       const firstPath = getFirstPath(route.path);
       const fullPath = joinPaths(parentPath, firstPath);
+      const isParent = route.children && route.children.length > 0;
       const matchResult = matchPath(
         normalizedRoutePath.includes("|")
           ? normalizedRoutePath
@@ -278,7 +289,8 @@ const StaticRouter = ({
               .map((p) => joinPaths(parentPath, p))
               .join("|")
           : fullPath,
-        currentPath
+        currentPath,
+        isParent
       );
 
       if (matchResult) {
@@ -349,12 +361,27 @@ const StaticRouter = ({
         context.action = "OK";
         context.statusCode = 200;
 
-        return {
-          component: route.component,
-          match: routeMatch,
-          pattern: matchResult.pattern,
-          params: matchResult.params,
-        };
+        // If no children matched, check if this is an exact match
+        const isExactMatch = matchPath(
+          normalizedRoutePath.includes("|")
+            ? normalizedRoutePath
+                .split("|")
+                .map((p) => joinPaths(parentPath, p))
+                .join("|")
+            : fullPath,
+          currentPath,
+          false // Force exact match check
+        );
+
+        if (isExactMatch) {
+          return {
+            component: route.component,
+            match: routeMatch,
+            pattern: matchResult.pattern,
+            params: matchResult.params,
+          };
+        }
+        // If not exact and no children matched, continue loop matching other routes
       }
 
       // Check children routes

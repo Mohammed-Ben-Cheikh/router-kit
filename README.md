@@ -1,6 +1,6 @@
 # Router-Kit
 
-A professional React routing library with guards, loaders, loading components,middlewares, and navigation blocking.
+A professional React routing library with guards, loaders, loading components, middlewares, and navigation blocking.
 
 **Version:** 2.1.0 | **License:** MIT
 

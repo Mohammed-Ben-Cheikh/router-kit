@@ -80,7 +80,7 @@ function App() {
 ```tsx
 const authGuard = async () => {
   const isAuth = await checkAuth();
-  return isAuth || { redirect: "/login" };
+  return isAuth || "/login" ;
 };
 
 const routes = createRouter([

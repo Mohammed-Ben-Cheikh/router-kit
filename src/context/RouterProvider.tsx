@@ -12,6 +12,7 @@ import join from "url-join";
 import Page404 from "../pages/404";
 import type {
   Location,
+  MiddlewareContext,
   NavigateFunction,
   NavigateOptions,
   Route,
@@ -25,6 +26,7 @@ import {
   RouterErrorCode,
   RouterErrors,
 } from "../utils/error/errors";
+import { executeMiddlewareChain } from "../utils/middleware";
 import { OutletProvider } from "./OutletContext";
 import RouterContext from "./RouterContext";
 
@@ -170,11 +172,14 @@ interface MatchResult {
   matches: RouteMatch[];
   meta: RouteMeta | null;
   redirect?: string;
+  error?: Error;
   loader?: {
     fn: (args: any) => Promise<any> | any;
     params: Record<string, string>;
   };
   page404Component?: ReactNode;
+  errorElement?: ReactNode;
+  middlewareResult?: { type: "continue" | "redirect" | "block"; to?: string };
 }
 
 /**
@@ -202,15 +207,18 @@ const matchPathPattern = (
 };
 
 /**
- * Pure function to match routes and return result without side effects
+ * Async function to match routes with middleware and guard support
+ * Handles both sync and async guards/middleware
  */
-const matchRoutes = (
+const matchRoutesAsync = async (
   routesList: Route[],
   currentPath: string,
   parentPath: string = "/",
   searchString: string = "",
-  collectedMatches: RouteMatch[] = []
-): MatchResult => {
+  collectedMatches: RouteMatch[] = [],
+  request?: Request,
+  signal?: AbortSignal
+): Promise<MatchResult> => {
   const staticRoutes: Route[] = [];
   const dynamicRoutes: Route[] = [];
   const catchAllRoutes: Route[] = [];
@@ -278,27 +286,98 @@ const matchRoutes = (
         };
       }
 
-      // Handle guards
-      if (route.guard) {
-        const guardResult = route.guard({
+      // Execute middleware chain (Chain of Responsibility pattern)
+      if (route.middleware && route.middleware.length > 0) {
+        const middlewareContext: MiddlewareContext = {
           pathname: currentPath,
           params: matchResult.params,
           search: searchString,
-        });
+          request,
+          signal,
+        };
 
-        if (typeof guardResult === "string") {
+        try {
+          const middlewareResult = await executeMiddlewareChain(
+            route.middleware,
+            middlewareContext
+          );
+
+          // Handle middleware redirect
+          if (middlewareResult.type === "redirect") {
+            return {
+              component: null,
+              pattern: matchResult.pattern,
+              params: matchResult.params,
+              matches: collectedMatches,
+              meta: null,
+              redirect: middlewareResult.to || "/",
+              page404Component,
+              errorElement: route.errorElement,
+              middlewareResult,
+            };
+          }
+
+          // Handle middleware block
+          if (middlewareResult.type === "block") {
+            continue; // Skip this route
+          }
+        } catch (error) {
+          // Middleware threw an error - return error result
           return {
             component: null,
             pattern: matchResult.pattern,
             params: matchResult.params,
             matches: collectedMatches,
             meta: null,
-            redirect: guardResult,
+            error: error instanceof Error ? error : new Error(String(error)),
             page404Component,
+            errorElement: route.errorElement,
           };
         }
-        if (guardResult === false) {
-          continue; // Skip this route
+      }
+
+      // Handle guards (supports async)
+      if (route.guard) {
+        const guardArgs = {
+          pathname: currentPath,
+          params: matchResult.params,
+          search: searchString,
+          request,
+          signal,
+        };
+
+        try {
+          // Handle both sync and async guards
+          const guardResult = await Promise.resolve(route.guard(guardArgs));
+
+          // Guard can return string (redirect), boolean, or Promise of either
+          if (typeof guardResult === "string") {
+            return {
+              component: null,
+              pattern: matchResult.pattern,
+              params: matchResult.params,
+              matches: collectedMatches,
+              meta: null,
+              redirect: guardResult,
+              page404Component,
+              errorElement: route.errorElement,
+            };
+          }
+          if (guardResult === false) {
+            continue; // Skip this route
+          }
+        } catch (error) {
+          // Guard threw an error - return error result
+          return {
+            component: null,
+            pattern: matchResult.pattern,
+            params: matchResult.params,
+            matches: collectedMatches,
+            meta: null,
+            error: error instanceof Error ? error : new Error(String(error)),
+            page404Component,
+            errorElement: route.errorElement,
+          };
         }
       }
 
@@ -315,12 +394,14 @@ const matchRoutes = (
 
       // Handle nested routes with Outlet support
       if (route.children && route.children.length > 0) {
-        const childResult = matchRoutes(
+        const childResult = await matchRoutesAsync(
           route.children,
           currentPath,
           fullPath,
           searchString,
-          newMatches
+          newMatches,
+          request,
+          signal
         );
 
         if (childResult.component || childResult.redirect) {
@@ -344,6 +425,7 @@ const matchRoutes = (
               ? { fn: route.loader, params: matchResult.params }
               : childResult.loader,
             page404Component: page404Component || childResult.page404Component,
+            errorElement: route.errorElement || childResult.errorElement,
           };
         }
       }
@@ -358,17 +440,20 @@ const matchRoutes = (
           ? { fn: route.loader, params: matchResult.params }
           : undefined,
         page404Component,
+        errorElement: route.errorElement,
       };
     }
 
     // Check children routes (for routes without matching parent)
     if (route.children) {
-      const childResult = matchRoutes(
+      const childResult = await matchRoutesAsync(
         route.children,
         currentPath,
         fullPath,
         searchString,
-        collectedMatches
+        collectedMatches,
+        request,
+        signal
       );
       if (childResult.component || childResult.redirect) {
         return {
@@ -409,10 +494,20 @@ const RouterProvider = ({
 }: RouterProviderProps) => {
   const [location, setLocation] = useState<Location>(getCurrentLocation);
   const [loaderData, setLoaderData] = useState<any>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [matchResult, setMatchResult] = useState<MatchResult>({
+    component: null,
+    pattern: "",
+    params: {},
+    matches: [],
+    meta: null,
+    page404Component: null,
+  });
   const [isPending, startTransition] = useTransition();
 
   const scrollPositions = useRef<Map<string, number>>(new Map());
   const isNavigatingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   /**
    * Normalize pathname by removing basename
@@ -561,14 +656,64 @@ const RouterProvider = ({
   }, []);
 
   /**
-   * Compute matched route result (pure computation)
+   * Compute matched route result with async middleware and guard support
    */
   const normalizedPath = normalizePathname(location.pathname);
 
-  const matchResult = useMemo(
-    () => matchRoutes(routes, normalizedPath, "/", location.search),
-    [routes, normalizedPath, location.search]
-  );
+  // Async route matching with middleware and guards
+  useEffect(() => {
+    // Abort previous matching if still in progress
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this matching
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    // Create request object for middleware/guards
+    const request =
+      typeof window !== "undefined"
+        ? new Request(window.location.href)
+        : undefined;
+
+    // Execute async route matching
+    matchRoutesAsync(
+      routes,
+      normalizedPath,
+      "/",
+      location.search,
+      [],
+      request,
+      abortController.signal
+    )
+      .then((result) => {
+        // Only update if not aborted
+        if (!abortController.signal.aborted) {
+          setMatchResult(result);
+          setError(null); // Clear any previous errors on successful match
+        }
+      })
+      .catch((error) => {
+        // Ignore abort errors
+        if (error.name !== "AbortError") {
+          console.error("[router-kit] Route matching error:", error);
+          setError(error);
+          setMatchResult({
+            component: null,
+            pattern: "",
+            params: {},
+            matches: [],
+            meta: null,
+            page404Component: null,
+          });
+        }
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [routes, normalizedPath, location.search]);
 
   // Handle redirects
   useEffect(() => {
@@ -587,9 +732,21 @@ const RouterProvider = ({
           request: new Request(window.location.href),
           signal: abortController.signal,
         })
-      ).then(setLoaderData);
+      )
+        .then((data) => {
+          setLoaderData(data);
+          setError(null); // Clear error on successful loader
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") {
+            console.error("[router-kit] Loader error:", error);
+            setError(error);
+          }
+        });
 
       return () => abortController.abort();
+    } else {
+      setLoaderData(null);
     }
   }, [matchResult.loader]);
 
@@ -598,10 +755,23 @@ const RouterProvider = ({
     if (matchResult.meta?.title && typeof document !== "undefined") {
       document.title = matchResult.meta.title;
     }
+    if (matchResult.meta?.description && typeof document !== "undefined") {
+      let descriptionTag = document.querySelector(
+        'meta[name="description"]'
+      ) as HTMLMetaElement | null;
+      if (!descriptionTag) {
+        descriptionTag = document.createElement("meta");
+        descriptionTag.name = "description";
+        document.head.appendChild(descriptionTag);
+      }
+      descriptionTag.content = matchResult.meta.description;
+    }
   }, [matchResult.meta]);
 
   const component =
-    matchResult.component ?? (matchResult.page404Component || <Page404 />);
+    (error || matchResult.error) && matchResult.errorElement
+      ? matchResult.errorElement
+      : matchResult.component ?? (matchResult.page404Component || <Page404 />);
 
   /**
    * Build context value with memoization
@@ -647,7 +817,7 @@ const RouterProvider = ({
   return (
     <RouterContext.Provider value={contextValue}>
       {fallbackElement && isPending ? (
-        <Suspense fallback={fallbackElement}>{component}</Suspense>
+        <Suspense fallback={fallbackElement}>{fallbackElement}</Suspense>
       ) : (
         component
       )}

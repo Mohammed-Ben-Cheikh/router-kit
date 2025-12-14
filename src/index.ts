@@ -51,6 +51,9 @@ export type {
   LoaderArgs,
   // Location
   Location,
+  Middleware,
+  MiddlewareContext,
+  MiddlewareResult,
   NavigateFunction,
   // Navigation
   NavigateOptions,
@@ -77,6 +80,15 @@ export {
   RouterErrors,
   RouterKitError as RouterKitErrorClass,
 } from "./utils/error/errors";
+
+// Middleware utilities
+export {
+  executeMiddlewareChain,
+  createAuthMiddleware,
+  createRoleMiddleware,
+  createDataMiddleware,
+  createLoggingMiddleware,
+} from "./utils/middleware";
 
 // SSR - Server-Side Rendering
 export {

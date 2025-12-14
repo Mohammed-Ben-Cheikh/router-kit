@@ -35,17 +35,13 @@
     "audit:fix": "npm audit fix",
     "validate:deps": "npm ls"
   },
-  "peerDependencies": {
-    "react": ">=16 <20",
-    "react-dom": ">=16 <20"
-  },
   "dependencies": {
     "url-join": "^5.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.2.0",
     "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2"
+    "@types/react-dom": "^19.2.2",
+    "typescript": "^5.2.0"
   },
   "overrides": {
     "minimist": "^1.2.6",

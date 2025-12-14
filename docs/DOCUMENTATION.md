@@ -19,6 +19,7 @@
    - [Types](#types)
 6. [Advanced Usage](#advanced-usage)
    - [Route Guards](#route-guards)
+   - [Middleware](#middleware)
    - [Data Loading](#data-loading)
    - [Navigation Blocking](#navigation-blocking)
    - [Scroll Restoration](#scroll-restoration)
@@ -1141,6 +1142,54 @@ const routes = createRouter([
   },
 ]);
 ```
+
+---
+
+### Middleware
+
+Router-Kit supports middleware using the **Chain of Responsibility** pattern. Middleware functions execute before route guards and can perform authentication, data fetching, logging, and more.
+
+**Key Features:**
+- 🔗 Chain of Responsibility pattern
+- ⚡ Full async/await support with fetch
+- 🛡️ Route protection and redirection
+- 📊 Data prefetching capabilities
+- 🔄 Composable middleware chains
+
+**Quick Example:**
+
+```tsx
+import {
+  createRouter,
+  RouterProvider,
+  createAuthMiddleware,
+  createLoggingMiddleware,
+} from "router-kit";
+
+const authMiddleware = createAuthMiddleware({
+  checkAuth: async (context) => {
+    const token = localStorage.getItem("token");
+    return !!token;
+  },
+  redirectTo: "/login",
+});
+
+const loggingMiddleware = createLoggingMiddleware({
+  log: async (context) => {
+    console.log(`Accessing: ${context.pathname}`);
+  },
+});
+
+const routes = createRouter([
+  {
+    path: "/dashboard",
+    component: <Dashboard />,
+    middleware: [loggingMiddleware, authMiddleware],
+  },
+]);
+```
+
+**For complete middleware documentation, see [Middleware Guide](./MIDDLEWARE.md).**
 
 ---
 

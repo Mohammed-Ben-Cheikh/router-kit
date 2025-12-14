@@ -33,12 +33,15 @@ export interface ServerLoaderResult<T = any> {
  */
 const extractParams = (
   pattern: string,
-  pathname: string
+  pathname: string,
+  partialMatch: boolean = false
 ): Record<string, string> | null => {
   const patternParts = pattern.split("/").filter(Boolean);
   const pathParts = pathname.split("/").filter(Boolean);
 
-  if (patternParts.length !== pathParts.length) {
+  if (partialMatch) {
+    if (patternParts.length > pathParts.length) return null;
+  } else if (patternParts.length !== pathParts.length) {
     const hasCatchAll = patternParts.some((p) => p.startsWith("*"));
     if (!hasCatchAll) return null;
   }
@@ -84,7 +87,8 @@ const joinPaths = (parent: string, child: string): string => {
 /**
  * Normalize path to string (handles array paths)
  */
-const normalizePath = (path: string | string[]): string => {
+const normalizePath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path.map((p) => (p.startsWith("/") ? p.slice(1) : p)).join("|");
   }
@@ -94,7 +98,8 @@ const normalizePath = (path: string | string[]): string => {
 /**
  * Get the first path from a path (string or array)
  */
-const getFirstPath = (path: string | string[]): string => {
+const getFirstPath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path[0] || "";
   }
@@ -133,7 +138,11 @@ export function matchServerRoutes(
     const is404 = route.path === "404" || route.path === "/404";
     if (is404) continue;
 
-    const pathArray = Array.isArray(route.path) ? route.path : [route.path];
+    const pathArray = Array.isArray(route.path)
+      ? route.path
+      : route.path
+      ? [route.path]
+      : [];
     const hasCatchAll = pathArray.some((p) => p.includes("*"));
     const hasDynamicParams = pathArray.some((p) => p.includes(":"));
 
@@ -156,7 +165,8 @@ export function matchServerRoutes(
 
     for (const pattern of patterns) {
       const fullPattern = joinPaths(parentPath, pattern);
-      const extractedParams = extractParams(fullPattern, pathname);
+      const isParent = route.children && route.children.length > 0;
+      const extractedParams = extractParams(fullPattern, pathname, isParent);
 
       if (extractedParams !== null) {
         // Handle redirects

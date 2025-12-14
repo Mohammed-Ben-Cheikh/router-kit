@@ -5,13 +5,15 @@ import { ComponentType, JSX, LazyExoticComponent, ReactNode } from "react";
  */
 export interface Route {
   /** Path pattern(s) for the route */
-  path: string | string[];
+  path?: string | string[];
   /** Component to render */
   component: JSX.Element;
   /** Nested child routes */
   children?: Route[];
   /** Index route flag - renders when parent path matches exactly */
   index?: boolean;
+  /** Component to render while loading data or performing async tasks */
+  loading?: JSX.Element;
   /** Lazy-loaded component */
   lazy?: LazyExoticComponent<ComponentType<any>>;
   /** Route loader function for data fetching */

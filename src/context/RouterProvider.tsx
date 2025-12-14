@@ -46,7 +46,8 @@ const validateUrl = (url: string): boolean => {
  * Normalize path to string (handles array paths)
  * Preserves '/' as a special case for root path
  */
-const normalizePath = (path: string | string[]): string => {
+const normalizePath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path
       .map((p) => {
@@ -64,7 +65,8 @@ const normalizePath = (path: string | string[]): string => {
 /**
  * Get the first path from a path (string or array)
  */
-const getFirstPath = (path: string | string[]): string => {
+const getFirstPath = (path: string | string[] | undefined): string => {
+  if (path === undefined) return "";
   if (Array.isArray(path)) {
     return path[0] || "";
   }
@@ -109,7 +111,8 @@ const getCurrentLocation = (): Location => {
  */
 const extractParams = (
   pattern: string,
-  pathname: string
+  pathname: string,
+  partialMatch: boolean = false
 ): Record<string, string> | null => {
   // Special case: root path matching
   const normalizedPattern = pattern === "/" ? "" : pattern;
@@ -123,7 +126,12 @@ const extractParams = (
     return {};
   }
 
-  if (patternParts.length !== pathParts.length) {
+  // If partial match is allowed, we only need to match up to the pattern length
+  // The route matches if it consumes a prefix of the URL
+  if (partialMatch) {
+    if (patternParts.length > pathParts.length) return null;
+  } else if (patternParts.length !== pathParts.length) {
+    // Exact match logic (unless catch-all)
     // Check for catch-all pattern
     const hasCatchAll = patternParts.some((p) => p.startsWith("*"));
     if (!hasCatchAll) return null;
@@ -138,6 +146,9 @@ const extractParams = (
     // Catch-all segment (*splat or **)
     if (patternPart.startsWith("*")) {
       const paramName = patternPart.slice(1) || "splat";
+      // For partial match, catch-all consumes everything remaining?
+      // Or just the rest of what was requested?
+      // Usually catch-all consumes everything, so it behaves like exact match + capture
       params[paramName] = pathParts.slice(i).join("/");
       return params;
     }
@@ -187,7 +198,8 @@ interface MatchResult {
  */
 const matchPathPattern = (
   routePattern: string,
-  currentPath: string
+  currentPath: string,
+  partialMatch: boolean = false
 ): {
   match: boolean;
   params: Record<string, string>;
@@ -198,7 +210,11 @@ const matchPathPattern = (
   for (const pat of patterns) {
     // Handle root path pattern
     const normalizedPat = pat === "" ? "/" : pat;
-    const extractedParams = extractParams(normalizedPat, currentPath);
+    const extractedParams = extractParams(
+      normalizedPat,
+      currentPath,
+      partialMatch
+    );
     if (extractedParams !== null) {
       return { match: true, params: extractedParams, pattern: normalizedPat };
     }
@@ -225,11 +241,12 @@ const matchRoutesAsync = async (
   let page404Component: ReactNode = null;
 
   for (const route of routesList) {
-    const pathArray = Array.isArray(route.path)
-      ? route.path
-      : route.path.includes("|")
-      ? route.path.split("|")
-      : [route.path];
+    const rawPath = route.path || "";
+    const pathArray = Array.isArray(rawPath)
+      ? rawPath
+      : rawPath.includes("|")
+      ? rawPath.split("|")
+      : [rawPath];
     const is404 = pathArray.some((p) => p === "404" || p === "/404");
     if (is404) {
       page404Component = route.component;
@@ -270,7 +287,10 @@ const matchRoutesAsync = async (
           })
           .join("|")
       : fullPath;
-    const matchResult = matchPathPattern(fullPattern, currentPath);
+
+    // Enable partial matching if route has children
+    const isParent = route.children && route.children.length > 0;
+    const matchResult = matchPathPattern(fullPattern, currentPath, isParent);
 
     if (matchResult) {
       // Handle redirects
@@ -503,6 +523,8 @@ const RouterProvider = ({
     meta: null,
     page404Component: null,
   });
+  // Track initial route resolution to prevent 404 flash
+  const [isResolving, setIsResolving] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   const scrollPositions = useRef<Map<string, number>>(new Map());
@@ -678,6 +700,7 @@ const RouterProvider = ({
         : undefined;
 
     // Execute async route matching
+    setIsResolving(true);
     matchRoutesAsync(
       routes,
       normalizedPath,
@@ -691,7 +714,15 @@ const RouterProvider = ({
         // Only update if not aborted
         if (!abortController.signal.aborted) {
           setMatchResult(result);
+
+          // Clear loader data if the new route has a loader
+          // This ensures showLoading becomes true (prevents stale data)
+          if (result.loader) {
+            setLoaderData(null);
+          }
+
           setError(null); // Clear any previous errors on successful match
+          setIsResolving(false);
         }
       })
       .catch((error) => {
@@ -707,6 +738,7 @@ const RouterProvider = ({
             meta: null,
             page404Component: null,
           });
+          setIsResolving(false);
         }
       });
 
@@ -768,10 +800,26 @@ const RouterProvider = ({
     }
   }, [matchResult.meta]);
 
+  // Determine the loading component to show (if any)
+  const routeLoadingComponent =
+    matchResult.matches.length > 0
+      ? matchResult.matches[matchResult.matches.length - 1].route.loading
+      : null;
+
+  const showLoading =
+    isResolving || isPending || (matchResult.loader && !loaderData);
+
+  // Prioritize error -> loading -> content -> 404
   const component =
-    (error || matchResult.error) && matchResult.errorElement
-      ? matchResult.errorElement
-      : matchResult.component ?? (matchResult.page404Component || <Page404 />);
+    (error || matchResult.error) && matchResult.errorElement ? (
+      matchResult.errorElement
+    ) : showLoading ? (
+      <Suspense fallback={fallbackElement || null}>
+        {routeLoadingComponent || fallbackElement || null}
+      </Suspense>
+    ) : (
+      matchResult.component ?? (matchResult.page404Component || <Page404 />)
+    );
 
   /**
    * Build context value with memoization

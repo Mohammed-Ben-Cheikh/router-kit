@@ -1,6 +1,6 @@
 # Router-Kit Architecture & Implementation
 
-Technical documentation for Router-Kit v2.0.0
+Technical documentation for Router-Kit v2.1.0
 
 ---
 

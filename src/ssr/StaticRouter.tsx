@@ -361,12 +361,27 @@ const StaticRouter = ({
         context.action = "OK";
         context.statusCode = 200;
 
-        return {
-          component: route.component,
-          match: routeMatch,
-          pattern: matchResult.pattern,
-          params: matchResult.params,
-        };
+        // If no children matched, check if this is an exact match
+        const isExactMatch = matchPath(
+          normalizedRoutePath.includes("|")
+            ? normalizedRoutePath
+                .split("|")
+                .map((p) => joinPaths(parentPath, p))
+                .join("|")
+            : fullPath,
+          currentPath,
+          false // Force exact match check
+        );
+
+        if (isExactMatch) {
+          return {
+            component: route.component,
+            match: routeMatch,
+            pattern: matchResult.pattern,
+            params: matchResult.params,
+          };
+        }
+        // If not exact and no children matched, continue loop matching other routes
       }
 
       // Check children routes

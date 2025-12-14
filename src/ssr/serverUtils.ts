@@ -209,12 +209,21 @@ export function matchServerRoutes(
           }
         }
 
-        return {
-          matches,
-          params: extractedParams,
-          statusCode: 200,
-          meta: route.meta,
-        };
+        // If no children matched, check for exact match
+        // Rethink fullPattern logic: patterns contains split parts.
+        // We need to re-verify the specific pattern that matched partially.
+        const isExactMatch = extractParams(fullPattern, pathname, false);
+
+        if (isExactMatch !== null) {
+          return {
+            matches,
+            params: extractedParams,
+            statusCode: 200,
+            meta: route.meta,
+          };
+        }
+        // If not exact and no children matched, continue loop matching other routes (pop from matches implicitly by not returning)
+        matches.pop(); // Remove the partial match from matches array if we are continuing
       }
     }
 

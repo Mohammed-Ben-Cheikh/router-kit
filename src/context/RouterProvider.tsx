@@ -450,18 +450,32 @@ const matchRoutesAsync = async (
         }
       }
 
-      return {
-        component: route.component,
-        pattern: matchResult.pattern,
-        params: matchResult.params,
-        matches: newMatches,
-        meta: route.meta || null,
-        loader: route.loader
-          ? { fn: route.loader, params: matchResult.params }
-          : undefined,
-        page404Component,
-        errorElement: route.errorElement,
-      };
+      // If we are here, children were checked but none matched (or didn't return a component).
+      // We must check if THIS route is an EXACT match for the current path.
+      // If it was only a partial match (prefix), and no children matched, then this route is NOT the correct match.
+      // Exceptions:
+      // 1. If it's a catch-all route (handled by exact match logic usually, or explicitly)
+      // 2. If the user intentionally wants to map a prefix to a component without children (unlikely if children prop exists)
+
+      const isExactMatch = matchPathPattern(fullPattern, currentPath, false);
+
+      if (isExactMatch) {
+        return {
+          component: route.component,
+          pattern: matchResult.pattern,
+          params: matchResult.params,
+          matches: newMatches,
+          meta: route.meta || null,
+          loader: route.loader
+            ? { fn: route.loader, params: matchResult.params }
+            : undefined,
+          page404Component,
+          errorElement: route.errorElement,
+        };
+      }
+
+      // If not exact match and no children matched, this partial match is invalid.
+      // Fall through to continue loop.
     }
 
     // Check children routes (for routes without matching parent)
@@ -700,7 +714,8 @@ const RouterProvider = ({
         : undefined;
 
     // Execute async route matching
-    setIsResolving(true);
+    // Only set resolving for the first time to prevent layout unmounting on navigation
+    // setIsResolving(true); // Removed to prevent flicker
     matchRoutesAsync(
       routes,
       normalizedPath,
@@ -715,8 +730,7 @@ const RouterProvider = ({
         if (!abortController.signal.aborted) {
           setMatchResult(result);
 
-          // Clear loader data if the new route has a loader
-          // This ensures showLoading becomes true (prevents stale data)
+          // If the new route has a loader, we handle data clearing
           if (result.loader) {
             setLoaderData(null);
           }
@@ -806,8 +820,11 @@ const RouterProvider = ({
       ? matchResult.matches[matchResult.matches.length - 1].route.loading
       : null;
 
-  const showLoading =
-    isResolving || isPending || (matchResult.loader && !loaderData);
+  // Only show loading if:
+  // 1. Initial resolution (isResolving)
+  // 2. We have a match with a loader but no data yet (loaderData is null)
+  // We removed isPending to prevent "flash" of loading state during standard navigation transitions
+  const showLoading = isResolving || (matchResult.loader && !loaderData);
 
   // Prioritize error -> loading -> content -> 404
   const component =
@@ -864,11 +881,7 @@ const RouterProvider = ({
 
   return (
     <RouterContext.Provider value={contextValue}>
-      {fallbackElement && isPending ? (
-        <Suspense fallback={fallbackElement}>{fallbackElement}</Suspense>
-      ) : (
-        component
-      )}
+      <Suspense fallback={fallbackElement || null}>{component}</Suspense>
     </RouterContext.Provider>
   );
 };

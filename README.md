@@ -1,8 +1,8 @@
 # Router-Kit
 
-A professional React routing library with guards, loaders, and navigation blocking.
+A professional React routing library with guards, loaders, loading components,middlewares, and navigation blocking.
 
-**Version:** 2.0.0 | **License:** MIT
+**Version:** 2.1.0 | **License:** MIT
 
 ---
 
@@ -80,7 +80,7 @@ function App() {
 ```tsx
 const authGuard = async () => {
   const isAuth = await checkAuth();
-  return isAuth || "/login" ;
+  return isAuth || "/login";
 };
 
 const routes = createRouter([
@@ -134,6 +134,7 @@ const ctx = useOutletContext(); // Outlet context
 ## 🎭 Outlet (Nested Layouts)
 
 ```tsx
+import { useState } from "react";
 import { Outlet, useOutletContext } from "router-kit";
 
 // Parent layout with Outlet
@@ -193,7 +194,6 @@ const routes = createRouter([
 | ---------------------------------------- | ----------------- |
 | [Documentation](./docs/DOCUMENTATION.md) | Complete guide    |
 | [API Reference](./docs/API_REFERENCE.md) | Full API docs     |
-| [Examples](./docs/EXAMPLES.md)           | Code examples     |
 | [Architecture](./docs/ARCHITECTURE.md)   | Technical details |
 | [Changelog](./docs/CHANGELOG.md)         | Version history   |
 
